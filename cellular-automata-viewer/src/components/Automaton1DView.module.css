@@ -1,0 +1,26 @@
+.automatonRow {
+  display: flex;
+  flex-direction: row;
+  margin-bottom: 2px; /* Space between rows if multiple are stacked */
+}
+
+.cell {
+  width: 15px;
+  height: 15px;
+  border: 1px solid #ccc;
+  margin-right: 1px; /* Tiny space between cells */
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 8px; /* For displaying index if needed, not required by task */
+}
+
+.cellDead {
+  background-color: white;
+}
+
+.cellAlive {
+  background-color: black;
+  color: white; /* If showing index or other content */
+}
