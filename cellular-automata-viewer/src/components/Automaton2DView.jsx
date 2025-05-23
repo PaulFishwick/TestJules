@@ -1,10 +1,10 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import * as twgl from 'twgl.js'; // Or import specific functions: import { m4, createProgramInfo, ... } from 'twgl.js';
+import * as twgl from 'twgl.js';
 
 // Shader definitions
 const VS_QUAD = `
-  attribute vec2 a_position; // Vertices for a unit quad (e.g., 0,0 to 1,1)
-  uniform mat4 u_matrix;     // Transforms the unit quad to the correct cell
+  attribute vec2 a_position;
+  uniform mat4 u_matrix;
   
   void main() {
     gl_Position = u_matrix * vec4(a_position, 0.0, 1.0);
@@ -16,7 +16,7 @@ const FS_COLOR = `
   uniform vec4 u_color;
   
   void main() {
-    gl_FragColor = u_color; // gl_FragColor for WebGL1 compat, TWGL might handle outColor
+    gl_FragColor = u_color;
   }
 `;
 
@@ -26,12 +26,6 @@ const DEAD_COLOR = [0.9, 0.9, 0.9, 1];  // Light grey
 
 /**
  * Automaton2DView component uses WebGL (via TWGL.js) to render a 2D cellular automaton.
- *
- * Props:
- * - width (number): The width of the canvas. Defaults to 500.
- * - height (number): The height of the canvas. Defaults to 500.
- * - currentGrid (number[][]): The 2D grid state to render.
- * - onCellToggle (function): Callback when a cell should be toggled. Receives (rowIndex, colIndex).
  */
 const Automaton2DView = ({
   width = 500,
@@ -47,13 +41,13 @@ const Automaton2DView = ({
   const [isDragging, setIsDragging] = useState(false);
   const lastToggledCellRef = useRef({ r: -1, c: -1 });
 
+  console.log('[View] Automaton2DView rendering/re-rendering');
+
   const getCellFromMouseEvent = (event) => {
     if (!canvasRef.current || !currentGrid || currentGrid.length === 0) return null;
-
     const rect = canvasRef.current.getBoundingClientRect();
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
-
     const gl = glRef.current;
     if (!gl) return null;
 
@@ -76,10 +70,10 @@ const Automaton2DView = ({
   };
 
   const handleMouseDown = (event) => {
-    console.log('[View] handleMouseDown: event', event.nativeEvent.offsetX, event.nativeEvent.offsetY);
+    console.log('[View] handleMouseDown: FIRED');
     setIsDragging(true);
     const cell = getCellFromMouseEvent(event);
-    console.log('[View] handleMouseDown: cell', cell);
+    console.log('[View] handleMouseDown: cell from getCellFromMouseEvent', cell);
     if (cell && onCellToggle) {
       onCellToggle(cell.rowIndex, cell.colIndex);
       lastToggledCellRef.current = { r: cell.rowIndex, c: cell.colIndex };
@@ -103,11 +97,11 @@ const Automaton2DView = ({
 
   const handleMouseUp = () => {
     setIsDragging(false);
-    lastToggledCellRef.current = { r: -1, c: -1 }; // Reset last toggled cell
+    lastToggledCellRef.current = { r: -1, c: -1 };
   };
 
   const handleMouseLeave = () => {
-    setIsDragging(false); // Stop dragging if mouse leaves canvas
+    setIsDragging(false);
     lastToggledCellRef.current = { r: -1, c: -1 };
   };
 
@@ -115,7 +109,6 @@ const Automaton2DView = ({
     const gl = glRef.current;
     const programInfo = programInfoRef.current;
     const quadBufferInfo = quadBufferInfoRef.current;
-
     console.log('[View] drawGrid: Called. currentGrid dimensions:', currentGrid ? currentGrid.length : 'null', currentGrid && currentGrid[0] ? currentGrid[0].length : 'null');
 
     if (!gl || !programInfo || !quadBufferInfo || !currentGrid || currentGrid.length === 0) {
@@ -128,30 +121,22 @@ const Automaton2DView = ({
 
     const numRows = currentGrid.length;
     const numCols = currentGrid[0].length;
-
     if (numRows === 0 || numCols === 0) {
         if (gl) {
             gl.clearColor(0.95, 0.95, 0.95, 1); 
             gl.clear(gl.COLOR_BUFFER_BIT);
         }
-        return; // Nothing to draw
+        return;
     }
     
-    // It's important to resize the canvas before calculating cellWidth/cellHeight
-    // if the canvas drawingBuffer size doesn't match the CSS display size.
-    // twgl.resizeCanvasToDisplaySize handles this.
     twgl.resizeCanvasToDisplaySize(gl.canvas);
     gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
-    
-    gl.clearColor(0.95, 0.95, 0.95, 1); // Light background for the grid area
+    gl.clearColor(0.95, 0.95, 0.95, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
-
     gl.useProgram(programInfo.program);
     twgl.setBuffersAndAttributes(gl, programInfo, quadBufferInfo);
-
     const cellWidth = gl.canvas.width / numCols;
     const cellHeight = gl.canvas.height / numRows;
-    
     const projectionMatrix = twgl.m4.ortho(0, gl.canvas.width, gl.canvas.height, 0, -1, 1);
 
     for (let r = 0; r < numRows; r++) {
@@ -159,92 +144,111 @@ const Automaton2DView = ({
         const modelMatrix = twgl.m4.identity();
         twgl.m4.translate(modelMatrix, [c * cellWidth, r * cellHeight, 0], modelMatrix);
         twgl.m4.scale(modelMatrix, [cellWidth, cellHeight, 1], modelMatrix);
-        
         const u_matrix = twgl.m4.multiply(projectionMatrix, modelMatrix);
         const u_color = currentGrid[r][c] === 1 ? ALIVE_COLOR : DEAD_COLOR;
-
-        twgl.setUniforms(programInfo, {
-          u_matrix,
-          u_color,
-        });
+        twgl.setUniforms(programInfo, { u_matrix, u_color });
         twgl.drawBufferInfo(gl, quadBufferInfo);
       }
     }
-  }, [currentGrid]); // Depends on currentGrid
+  }, [currentGrid]);
 
+  // Effect 1: Setup and Cleanup GL resources
   useEffect(() => {
-    // This effect handles both initialization and re-drawing when currentGrid changes.
-    console.log('[View] Main useEffect: currentGrid changed or drawGrid recreated. Calling drawGrid.');
-    if (!canvasRef.current) return;
-
-    // Initialize GL context and resources if not already done
-    if (!glRef.current) {
-      const gl = canvasRef.current.getContext('webgl2');
-      if (!gl) {
-        setWebGLError('WebGL2 is not available. Please use a compatible browser.');
-        return;
-      }
-      glRef.current = gl;
-      console.log('[View] WebGL context obtained.');
-
-      programInfoRef.current = twgl.createProgramInfo(gl, [VS_QUAD, FS_COLOR]);
-       if (!programInfoRef.current || !programInfoRef.current.program) {
-        setWebGLError('Failed to compile/link shader program.');
-        console.error('[View] Shader program error:', gl.getProgramInfoLog(programInfoRef.current && programInfoRef.current.program));
-        return;
-      }
-      console.log('[View] Shader program compiled and linked.');
-
-      const unitQuadVertices = [0,0, 1,0, 0,1,  0,1, 1,0, 1,1];
-      quadBufferInfoRef.current = twgl.createBufferInfoFromArrays(gl, {
-        a_position: { numComponents: 2, data: unitQuadVertices },
-      });
-      console.log('[View] Quad buffer created.');
+    console.log('[View] Mount/Resource Setup Effect running.');
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      console.error('[View] Canvas ref not available on mount.');
+      return;
     }
-    
-    drawGrid();
 
-    // Cleanup function for GL resources on unmount
+    const gl = canvas.getContext('webgl2');
+    if (!gl) {
+      setWebGLError('WebGL2 is not available.');
+      console.error('[View] Failed to get WebGL2 context.');
+      return;
+    }
+    glRef.current = gl;
+    console.log('[View] WebGL context obtained.');
+
+    const localProgramInfo = twgl.createProgramInfo(gl, [VS_QUAD, FS_COLOR]);
+    if (!localProgramInfo || !localProgramInfo.program) {
+      setWebGLError('Failed to compile/link shader program.');
+      const log = gl.getProgramInfoLog(localProgramInfo && localProgramInfo.program); // Get log before potential deletion
+      console.error('[View] Shader program creation failed:', log);
+      // Clean up context if program creation fails
+      glRef.current = null; 
+      return;
+    }
+    programInfoRef.current = localProgramInfo;
+    console.log('[View] Shader program created.');
+
+    const unitQuadVertices = [0,0, 1,0, 0,1,  0,1, 1,0, 1,1];
+    quadBufferInfoRef.current = twgl.createBufferInfoFromArrays(gl, {
+      a_position: { numComponents: 2, data: unitQuadVertices },
+    });
+    console.log('[View] Quad buffer created.');
+    setWebGLError(''); // Clear any previous error
+
     return () => {
-      if (glRef.current) {
-        if (programInfoRef.current && programInfoRef.current.program) {
-          glRef.current.deleteProgram(programInfoRef.current.program);
+      console.log('[View] Unmount/Resource Cleanup Effect running.');
+      const currentGl = glRef.current;
+      if (currentGl) {
+        // Use programInfoRef and quadBufferInfoRef as they should hold the correct resources
+        // at the time of cleanup, which were set by this effect instance.
+        if (programInfoRef.current && programInfoRef.current.program) { 
+             currentGl.deleteProgram(programInfoRef.current.program);
+             console.log('[View] Program deleted.');
         }
-        if (quadBufferInfoRef.current) {
-          if (quadBufferInfoRef.current.attribs && quadBufferInfoRef.current.attribs.a_position && quadBufferInfoRef.current.attribs.a_position.buffer) {
-             glRef.current.deleteBuffer(quadBufferInfoRef.current.attribs.a_position.buffer);
-          }
-          if (quadBufferInfoRef.current.indices) { // Though not used for this quad, good practice
-             glRef.current.deleteBuffer(quadBufferInfoRef.current.indices);
-          }
+        if (quadBufferInfoRef.current && quadBufferInfoRef.current.attribs && quadBufferInfoRef.current.attribs.a_position && quadBufferInfoRef.current.attribs.a_position.buffer) {
+           currentGl.deleteBuffer(quadBufferInfoRef.current.attribs.a_position.buffer);
+           console.log('[View] Buffer deleted.');
         }
-        console.log('Automaton2DView unmounted, WebGL resources potentially cleaned up.');
-        // Do not nullify glRef.current here if other effects might still use it during unmount phase,
-        // or ensure this is the last cleanup. For this setup, it's likely fine.
-        // glRef.current = null; // Or manage this more carefully if multiple effects clean up GL state.
       }
+      programInfoRef.current = null;
+      quadBufferInfoRef.current = null;
+      glRef.current = null; 
+      console.log('[View] GL Refs nullified.');
     };
-  }, [currentGrid, drawGrid]); // Re-run effect if currentGrid or drawGrid changes.
+  }, []); // Empty dependency array: runs on mount and unmount only.
+
+  // Effect 2: Drawing Effect
+  useEffect(() => {
+    console.log('[View] Drawing Effect triggered. currentGrid:', currentGrid ? `${currentGrid.length}x${currentGrid[0]?.length}` : 'null');
+    if (glRef.current && programInfoRef.current && quadBufferInfoRef.current && currentGrid && currentGrid.length > 0) {
+      drawGrid(); 
+    } else {
+      console.log('[View] Drawing Effect: Not drawing - GL resources or grid not ready/valid.');
+      const gl = glRef.current;
+      if (gl && (!currentGrid || currentGrid.length === 0)) {
+          console.log('[View] Drawing Effect: Clearing canvas due to empty/invalid grid.');
+          gl.clearColor(0.95, 0.95, 0.95, 1); 
+          gl.clear(gl.COLOR_BUFFER_BIT);
+      }
+    }
+  }, [currentGrid, drawGrid]);
 
   // Resize handler - separate effect for clarity
   useEffect(() => {
+    const canvas = canvasRef.current; // Capture canvas ref for cleanup robustness
     const handleResize = () => {
-      // glRef.current check is implicitly handled by drawGrid
-      drawGrid(); // Redraw on resize
+      // Guard to ensure resources are available before drawing
+      if (glRef.current && programInfoRef.current && quadBufferInfoRef.current && currentGrid && canvas === canvasRef.current) {
+        console.log('[View] Resize handler: Calling drawGrid.');
+        drawGrid();
+      } else {
+        console.log('[View] Resize handler: Not drawing - GL resources or grid not ready, or canvas changed.');
+      }
     };
     window.addEventListener('resize', handleResize);
     
-    // Call handleResize once initially to set correct canvas size based on CSS
-    // This ensures that the first drawGrid call in the main effect uses correct canvas dimensions.
-    // However, drawGrid itself calls resizeCanvasToDisplaySize, so this might be redundant
-    // if the initial canvas dimensions are correctly set by width/height props.
-    // For safety, especially if CSS influences size:
-    if (glRef.current) { // Ensure GL is initialized before first resize draw
+    // Initial draw on resize mount if everything is ready
+    if (glRef.current && programInfoRef.current && quadBufferInfoRef.current && currentGrid) {
+        console.log('[View] Resize useEffect: Initial resize call.');
         handleResize();
     }
 
     return () => window.removeEventListener('resize', handleResize);
-  }, [drawGrid]); // drawGrid is the dependency
+  }, [drawGrid, currentGrid]); // Add currentGrid as it's checked in the guard.
 
   if (webGLError) {
     return (
