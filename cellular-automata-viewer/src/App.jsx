@@ -6,6 +6,7 @@ import { calculateNextGeneration } from './automataLogic.js';
 
 const INITIAL_CELL_COUNT = 51; // Odd number for a clear middle cell
 const SIMULATION_SPEED_MS = 200; // Milliseconds
+const MAX_HISTORY_LENGTH = 200; // Maximum number of generations to store
 
 const createInitialGeneration = () => {
   const initial = Array(INITIAL_CELL_COUNT).fill(0);
@@ -18,7 +19,7 @@ const createInitialGeneration = () => {
 function App() {
   const [rule, setRule] = useState(30);
   const [isRunning, setIsRunning] = useState(false);
-  const [generation, setGeneration] = useState(createInitialGeneration());
+  const [generationsHistory, setGenerationsHistory] = useState([createInitialGeneration()]);
   const [generationCount, setGenerationCount] = useState(0);
 
   const handleStart = useCallback(() => {
@@ -31,7 +32,7 @@ function App() {
 
   const handleReset = useCallback(() => {
     setIsRunning(false);
-    setGeneration(createInitialGeneration());
+    setGenerationsHistory([createInitialGeneration()]);
     setGenerationCount(0);
   }, []);
 
@@ -42,37 +43,61 @@ function App() {
     handleReset(); // Reset simulation when rule changes
   }, [handleReset]);
 
-  const handleCellClick = useCallback((cellIndex) => {
-    if (!isRunning) {
-      setGeneration((prevGeneration) => {
-        const newGeneration = [...prevGeneration];
-        newGeneration[cellIndex] = newGeneration[cellIndex] === 0 ? 1 : 0;
-        return newGeneration;
+  const handleCellClick = useCallback((rowIndex, cellIndex) => {
+    if (!isRunning && rowIndex === 0 && generationsHistory.length > 0) {
+      setGenerationsHistory((prevHistory) => {
+        const newInitialGeneration = [...prevHistory[0]]; // Operate on the first generation
+        newInitialGeneration[cellIndex] = newInitialGeneration[cellIndex] === 0 ? 1 : 0;
+        
+        const newHistory = [...prevHistory]; // Create a new history array
+        newHistory[0] = newInitialGeneration; // Replace the first generation
+        
+        // If modifying the initial state should clear subsequent history and count:
+        // setGenerationCount(0);
+        // return [newInitialGeneration]; // This would clear all subsequent history
+
+        // If modifying the initial state should just update it in place within the existing history array:
+        return newHistory; 
       });
-      // Optional: Reset generation count if manual edit is considered a new start point
-      // setGenerationCount(0);
+      // If modifying the initial state should also reset generation count (but keep history)
+      // setGenerationCount(0); 
     }
-  }, [isRunning]);
+  }, [isRunning, generationsHistory]); // Added generationsHistory to deps for safety, though functional update reduces strict need
 
   useEffect(() => {
     if (!isRunning) {
       return; // Do nothing if not running
     }
-
+    
+    const currentGeneration = generationsHistory[generationsHistory.length - 1];
     // Check if generation array is valid before starting interval
-    if (!generation || generation.length === 0) {
-        console.warn("Simulation cannot start with an empty or invalid generation.");
+    if (!currentGeneration || currentGeneration.length === 0) {
+        console.warn("Simulation cannot start with an empty or invalid current generation.");
         setIsRunning(false); // Stop running if generation is bad
         return;
     }
 
     const intervalId = setInterval(() => {
-      setGeneration((prevGen) => calculateNextGeneration(prevGen, rule));
+      setGenerationsHistory((prevHistory) => {
+        const currentGen = prevHistory[prevHistory.length - 1];
+        const nextGen = calculateNextGeneration(currentGen, rule);
+        const newHistory = [...prevHistory, nextGen];
+        if (newHistory.length > MAX_HISTORY_LENGTH) {
+          return newHistory.slice(newHistory.length - MAX_HISTORY_LENGTH);
+        }
+        return newHistory;
+      });
       setGenerationCount((prevCount) => prevCount + 1);
     }, SIMULATION_SPEED_MS);
 
     return () => clearInterval(intervalId); // Cleanup on unmount or if isRunning/rule changes
-  }, [isRunning, rule]); // rule is included because calculateNextGeneration depends on it.
+  }, [isRunning, rule, generationsHistory]); // generationsHistory is needed to get the latest for calculation if not using functional update for setGenerationsHistory's nextGen part.
+                                          // However, since calculateNextGeneration is outside, and we are using functional update for setGenerationsHistory,
+                                          // we can optimize by making sure the interval's closure captures what it needs or gets it fresh.
+                                          // The current `setGenerationsHistory(prevHistory => ...)` is good.
+                                          // The main reason to keep generationsHistory in deps is if the effect itself needs to re-run based on its changes
+                                          // (e.g. the initial check `currentGeneration.length === 0`).
+                                          // Let's stick with this for now; it's safer.
 
   // Define styles that were previously inline or in App.css if they are specific to App.jsx layout
   const appSpecificStyles = {
@@ -120,7 +145,7 @@ function App() {
       />
       <div style={appSpecificStyles.automatonDisplay}>
         <Automaton1DView
-          generation={generation}
+          generationsHistory={generationsHistory}
           onCellClick={handleCellClick}
         />
         <p style={appSpecificStyles.statusText}>Generation: {generationCount}</p>
