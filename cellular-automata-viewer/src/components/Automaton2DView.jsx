@@ -45,33 +45,30 @@ const Automaton2DView = ({
   const quadBufferInfoRef = useRef(null);
   const [webGLError, setWebGLError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-  const lastToggledCellRef = useRef({ r: -1, c: -1 }); // To avoid rapid toggling of the same cell
+  const lastToggledCellRef = useRef({ r: -1, c: -1 });
 
   const getCellFromMouseEvent = (event) => {
     if (!canvasRef.current || !currentGrid || currentGrid.length === 0) return null;
 
     const rect = canvasRef.current.getBoundingClientRect();
-    // Use event.clientX/Y for coordinates relative to the viewport
-    // and subtract rect.left/top to get coordinates relative to the canvas.
     const mouseX = event.clientX - rect.left;
     const mouseY = event.clientY - rect.top;
 
-    // It's crucial to use the actual drawingBufferWidth/Height of the canvas,
-    // as it might differ from the CSS display width/height if not handled by resizeCanvasToDisplaySize.
-    // However, drawGrid calls resizeCanvasToDisplaySize, so gl.canvas.width/height should be correct.
     const gl = glRef.current;
     if (!gl) return null;
 
     const numRows = currentGrid.length;
     const numCols = currentGrid[0].length;
+    console.log('[View] getCellFromMouseEvent: mouseX, mouseY', mouseX, mouseY, 'canvas dims:', gl.canvas.width, gl.canvas.height, 'numCols, numRows:', numCols, numRows);
 
     const cellWidth = gl.canvas.width / numCols;
     const cellHeight = gl.canvas.height / numRows;
+    console.log('[View] getCellFromMouseEvent: calculated cellWidth, cellHeight', cellWidth, cellHeight);
 
     const colIndex = Math.floor(mouseX / cellWidth);
     const rowIndex = Math.floor(mouseY / cellHeight);
+    console.log('[View] getCellFromMouseEvent: calculated rowIndex, colIndex', rowIndex, colIndex);
 
-    // Ensure indices are within valid grid boundaries
     if (rowIndex >= 0 && rowIndex < numRows && colIndex >= 0 && colIndex < numCols) {
       return { rowIndex, colIndex };
     }
@@ -79,22 +76,27 @@ const Automaton2DView = ({
   };
 
   const handleMouseDown = (event) => {
+    console.log('[View] handleMouseDown: event', event.nativeEvent.offsetX, event.nativeEvent.offsetY);
     setIsDragging(true);
     const cell = getCellFromMouseEvent(event);
+    console.log('[View] handleMouseDown: cell', cell);
     if (cell && onCellToggle) {
       onCellToggle(cell.rowIndex, cell.colIndex);
       lastToggledCellRef.current = { r: cell.rowIndex, c: cell.colIndex };
+      console.log('[View] handleMouseDown: onCellToggle called with', cell.rowIndex, cell.colIndex);
     }
   };
 
   const handleMouseMove = (event) => {
+    console.log('[View] handleMouseMove: dragging?', isDragging);
     if (!isDragging) return;
     const cell = getCellFromMouseEvent(event);
+    console.log('[View] handleMouseMove: cell', cell);
     if (cell && onCellToggle) {
-      // Only toggle if it's a new cell to prevent rapid toggling on slight mouse movements
       if (cell.rowIndex !== lastToggledCellRef.current.r || cell.colIndex !== lastToggledCellRef.current.c) {
         onCellToggle(cell.rowIndex, cell.colIndex);
         lastToggledCellRef.current = { r: cell.rowIndex, c: cell.colIndex };
+        console.log('[View] handleMouseMove: onCellToggle called with', cell.rowIndex, cell.colIndex);
       }
     }
   };
@@ -114,8 +116,9 @@ const Automaton2DView = ({
     const programInfo = programInfoRef.current;
     const quadBufferInfo = quadBufferInfoRef.current;
 
+    console.log('[View] drawGrid: Called. currentGrid dimensions:', currentGrid ? currentGrid.length : 'null', currentGrid && currentGrid[0] ? currentGrid[0].length : 'null');
+
     if (!gl || !programInfo || !quadBufferInfo || !currentGrid || currentGrid.length === 0) {
-      // Clear canvas if grid is invalid or empty to avoid rendering stale data
       if (gl) {
         gl.clearColor(0.95, 0.95, 0.95, 1); 
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -171,30 +174,9 @@ const Automaton2DView = ({
 
   useEffect(() => {
     // This effect handles both initialization and re-drawing when currentGrid changes.
+    console.log('[View] Main useEffect: currentGrid changed or drawGrid recreated. Calling drawGrid.');
     if (!canvasRef.current) return;
 
-    if (!glRef.current) { // Initialize WebGL context and resources
-      const gl = canvasRef.current.getContext('webgl2');
-      if (!gl) {
-        setWebGLError('WebGL2 is not available. Please use a compatible browser.');
-        return;
-      }
-      glRef.current = gl;
-
-      programInfoRef.current = twgl.createProgramInfo(gl, [VS_QUAD, FS_COLOR]);
-      if (!programInfoRef.current.program) {
-        setWebGLError('Failed to compile/link shader program.');
-        console.error('Shader program error:', gl.getProgramInfoLog(programInfoRef.current.program));
-        return;
-      }
-
-      const unitQuadVertices = [0,0, 1,0, 0,1,  0,1, 1,0, 1,1]; // 2 triangles for a quad
-      quadBufferInfoRef.current = twgl.createBufferInfoFromArrays(gl, {
-        a_position: { numComponents: 2, data: unitQuadVertices },
-      });
-      
-      console.log('WebGL initialized, shaders compiled, buffer created.');
-    }
     // Initialize GL context and resources if not already done
     if (!glRef.current) {
       const gl = canvasRef.current.getContext('webgl2');
@@ -203,23 +185,23 @@ const Automaton2DView = ({
         return;
       }
       glRef.current = gl;
+      console.log('[View] WebGL context obtained.');
 
       programInfoRef.current = twgl.createProgramInfo(gl, [VS_QUAD, FS_COLOR]);
        if (!programInfoRef.current || !programInfoRef.current.program) {
         setWebGLError('Failed to compile/link shader program.');
-        console.error('Shader program error:', gl.getProgramInfoLog(programInfoRef.current && programInfoRef.current.program));
+        console.error('[View] Shader program error:', gl.getProgramInfoLog(programInfoRef.current && programInfoRef.current.program));
         return;
       }
+      console.log('[View] Shader program compiled and linked.');
 
       const unitQuadVertices = [0,0, 1,0, 0,1,  0,1, 1,0, 1,1];
       quadBufferInfoRef.current = twgl.createBufferInfoFromArrays(gl, {
         a_position: { numComponents: 2, data: unitQuadVertices },
       });
-      
-      console.log('WebGL initialized, shaders compiled, buffer created.');
+      console.log('[View] Quad buffer created.');
     }
     
-    // Draw the grid whenever currentGrid (passed as prop) changes or after initialization
     drawGrid();
 
     // Cleanup function for GL resources on unmount
