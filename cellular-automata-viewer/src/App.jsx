@@ -133,7 +133,7 @@ function App() {
   return (
     <div className="app-container"> {/* Use the global .app-container style */}
       <header style={appSpecificStyles.appHeader}>
-        <h1>1D Cellular Automaton</h1>
+        <h1 style={{ color: 'white' }}>1D Cellular Automaton</h1>
       </header>
       <Controls
         onStart={handleStart}
