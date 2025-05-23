@@ -1,25 +1,30 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import Automaton1DView from './components/Automaton1DView.jsx';
+import Automaton2DView from './components/Automaton2DView.jsx'; // Changed import
 import Controls from './components/Controls.jsx';
-import { calculateNextGeneration } from './automataLogic.js';
-// import './App.css'; // Remove if styles are now primarily in index.css or component modules
+import { calculateNextGeneration2D } from './automataLogic2D.js'; // Changed import
+// import './App.css';
 
-const INITIAL_CELL_COUNT = 51; // Odd number for a clear middle cell
-const SIMULATION_SPEED_MS = 200; // Milliseconds
-const MAX_HISTORY_LENGTH = 200; // Maximum number of generations to store
+const SIMULATION_SPEED_MS = 200;
+const GRID_ROWS_APP = 50; // Corresponds to GRID_ROWS in Automaton2DView
+const GRID_COLS_APP = 50; // Corresponds to GRID_COLS in Automaton2DView
 
-const createInitialGeneration = () => {
-  const initial = Array(INITIAL_CELL_COUNT).fill(0);
-  if (INITIAL_CELL_COUNT > 0) {
-    initial[Math.floor(INITIAL_CELL_COUNT / 2)] = 1; // Middle cell active
+// Creates an initial 2D grid with a glider pattern
+const createInitial2DGrid = () => {
+  const grid = Array(GRID_ROWS_APP).fill(null).map(() => Array(GRID_COLS_APP).fill(0));
+  // Simple Glider
+  if (GRID_ROWS_APP > 5 && GRID_COLS_APP > 5) {
+    grid[1][2] = 1;
+    grid[2][3] = 1;
+    grid[3][1] = 1;
+    grid[3][2] = 1;
+    grid[3][3] = 1;
   }
-  return initial;
+  return grid;
 };
 
 function App() {
-  const [rule, setRule] = useState(30);
   const [isRunning, setIsRunning] = useState(false);
-  const [generationsHistory, setGenerationsHistory] = useState([createInitialGeneration()]);
+  const [grid2D, setGrid2D] = useState(createInitial2DGrid());
   const [generationCount, setGenerationCount] = useState(0);
 
   const handleStart = useCallback(() => {
@@ -32,83 +37,58 @@ function App() {
 
   const handleReset = useCallback(() => {
     setIsRunning(false);
-    setGenerationsHistory([createInitialGeneration()]);
+    setGrid2D(createInitial2DGrid());
     setGenerationCount(0);
   }, []);
 
-  const handleRuleChange = useCallback((newRule) => {
-    // Ensure newRule is a number before setting. Controls.jsx should provide a number or empty string.
-    const ruleValue = (newRule === '' || isNaN(parseInt(newRule,10))) ? 0 : parseInt(newRule, 10);
-    setRule(Math.max(0, Math.min(255, ruleValue))); // Clamp rule
-    handleReset(); // Reset simulation when rule changes
-  }, [handleReset]);
-
-  const handleCellClick = useCallback((rowIndex, cellIndex) => {
-    if (!isRunning && rowIndex === 0 && generationsHistory.length > 0) {
-      setGenerationsHistory((prevHistory) => {
-        const newInitialGeneration = [...prevHistory[0]]; // Operate on the first generation
-        newInitialGeneration[cellIndex] = newInitialGeneration[cellIndex] === 0 ? 1 : 0;
-        
-        const newHistory = [...prevHistory]; // Create a new history array
-        newHistory[0] = newInitialGeneration; // Replace the first generation
-        
-        // If modifying the initial state should clear subsequent history and count:
-        // setGenerationCount(0);
-        // return [newInitialGeneration]; // This would clear all subsequent history
-
-        // If modifying the initial state should just update it in place within the existing history array:
-        return newHistory; 
+  const handleCellToggle2D = useCallback((rowIndex, colIndex) => {
+    if (!isRunning) {
+      setGrid2D((prevGrid) => {
+        // Create a deep copy of the grid to avoid mutating the previous state directly
+        const newGrid = prevGrid.map(row => [...row]);
+        // Ensure rowIndex and colIndex are within bounds (though Automaton2DView should also check)
+        if (rowIndex >= 0 && rowIndex < newGrid.length && colIndex >= 0 && colIndex < newGrid[0].length) {
+          newGrid[rowIndex][colIndex] = newGrid[rowIndex][colIndex] === 0 ? 1 : 0;
+        }
+        return newGrid;
       });
-      // If modifying the initial state should also reset generation count (but keep history)
+      // Optionally, reset generation count if manual interaction should restart "history"
       // setGenerationCount(0); 
     }
-  }, [isRunning, generationsHistory]); // Added generationsHistory to deps for safety, though functional update reduces strict need
+  }, [isRunning]); // isRunning is a dependency to ensure it only works when paused
 
   useEffect(() => {
     if (!isRunning) {
-      return; // Do nothing if not running
+      return;
     }
-    
-    const currentGeneration = generationsHistory[generationsHistory.length - 1];
-    // Check if generation array is valid before starting interval
-    if (!currentGeneration || currentGeneration.length === 0) {
-        console.warn("Simulation cannot start with an empty or invalid current generation.");
-        setIsRunning(false); // Stop running if generation is bad
-        return;
+
+    if (!grid2D || grid2D.length === 0) {
+      console.warn("Simulation cannot start with an empty or invalid 2D grid.");
+      setIsRunning(false);
+      return;
     }
 
     const intervalId = setInterval(() => {
-      setGenerationsHistory((prevHistory) => {
-        const currentGen = prevHistory[prevHistory.length - 1];
-        const nextGen = calculateNextGeneration(currentGen, rule);
-        const newHistory = [...prevHistory, nextGen];
-        if (newHistory.length > MAX_HISTORY_LENGTH) {
-          return newHistory.slice(newHistory.length - MAX_HISTORY_LENGTH);
-        }
-        return newHistory;
-      });
+      setGrid2D((prevGrid) => calculateNextGeneration2D(prevGrid));
       setGenerationCount((prevCount) => prevCount + 1);
     }, SIMULATION_SPEED_MS);
 
-    return () => clearInterval(intervalId); // Cleanup on unmount or if isRunning/rule changes
-  }, [isRunning, rule, generationsHistory]); // generationsHistory is needed to get the latest for calculation if not using functional update for setGenerationsHistory's nextGen part.
-                                          // However, since calculateNextGeneration is outside, and we are using functional update for setGenerationsHistory,
-                                          // we can optimize by making sure the interval's closure captures what it needs or gets it fresh.
-                                          // The current `setGenerationsHistory(prevHistory => ...)` is good.
-                                          // The main reason to keep generationsHistory in deps is if the effect itself needs to re-run based on its changes
-                                          // (e.g. the initial check `currentGeneration.length === 0`).
-                                          // Let's stick with this for now; it's safer.
+    return () => clearInterval(intervalId);
+  }, [isRunning, grid2D]); // grid2D is a dependency to ensure the interval callback uses the latest grid
+                            // if not using functional update for setGrid2D, though functional update is used here.
+                            // Keeping it can be safer if calculateNextGeneration2D was complex and defined inside App.
+                            // For now, this is fine.
 
-  // Define styles that were previously inline or in App.css if they are specific to App.jsx layout
+  // Styles can be adjusted if needed
   const appSpecificStyles = {
     appHeader: {
-      backgroundColor: '#004085', // A darker blue for header
+      backgroundColor: '#004085',
       padding: '15px',
       color: 'white',
       marginBottom: '25px',
-      width: '100%', // Ensure header spans the app-container width
+      width: '100%',
       textAlign: 'center',
-      borderRadius: '4px 4px 0 0', // Rounded top corners if app-container has rounded corners
+      borderRadius: '4px 4px 0 0',
     },
     automatonDisplay: {
       display: 'flex',
@@ -118,10 +98,10 @@ function App() {
       padding: '10px',
       border: '1px solid #eee',
       borderRadius: '4px',
-      backgroundColor: '#fdfdfd',
-      width: 'auto', // Fit content, or specify width
-      minWidth: '300px', // Ensure it's not too small
-      maxWidth: '100%', // Prevent overflow from app-container
+      backgroundColor: '#fdfdfd', // Background for the area containing the canvas
+      // width: 'auto', // Let canvas define width or set specific
+      // minWidth: '300px', 
+      // maxWidth: '100%',
     },
     statusText: {
       marginTop: '10px',
@@ -131,25 +111,26 @@ function App() {
   };
 
   return (
-    <div className="app-container"> {/* Use the global .app-container style */}
+    <div className="app-container">
       <header style={appSpecificStyles.appHeader}>
-        <h1 style={{ color: 'white' }}>1D Cellular Automaton</h1>
+        <h1 style={{ color: 'white' }}>2D Cellular Automaton (Game of Life)</h1>
       </header>
       <Controls
         onStart={handleStart}
         onPause={handlePause}
         onReset={handleReset}
-        onRuleChange={handleRuleChange}
-        currentRule={rule}
+        // onRuleChange and currentRule are removed as they are 1D specific for now
         isRunning={isRunning}
       />
       <div style={appSpecificStyles.automatonDisplay}>
-        <Automaton1DView
-          generationsHistory={generationsHistory}
-          onCellClick={handleCellClick}
+        <Automaton2DView
+          currentGrid={grid2D}
+          onCellToggle={handleCellToggle2D}
+          // width and height can be passed to Automaton2DView if needed
+          // e.g., width={GRID_COLS_APP * CELL_SIZE_IN_VIEW}
         />
         <p style={appSpecificStyles.statusText}>Generation: {generationCount}</p>
-        <p style={appSpecificStyles.statusText}>Rule: {rule}</p>
+        {/* Rule display removed */}
       </div>
     </div>
   );
