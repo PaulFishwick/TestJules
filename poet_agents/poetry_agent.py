@@ -3,11 +3,57 @@ import datetime
 import os # For file operations like delete and check existence
 from .style_guide import frederick_turner_style
 
+# Persona: Alpha - The Orator (Formal, Structured, Declarative)
+ALPHA_TEMPLATES = {
+    0: ("Hark, I shall articulate on '{prompt}', a matter of import,\n"
+        "Where {kw1} and {kw2} hold their court.\n"
+        "Observe the structure, meticulously wrought,\n"
+        "A reasoned discourse, by Alpha taught."),
+
+    1: ("Let us consider '{prompt}', with clarity and precision,\n"
+        "Its facets ({kw1}, {kw2}) shaped by logical decision.\n"
+        "No fleeting whim, but studied, keen vision,\n"
+        "Alpha presents this theme for your erudition."),
+
+    2: ("The subject '{prompt}' now commands the stage,\n"
+        "With {kw1} as a focus, and {kw2} to engage the sage.\n"
+        "Each line considered, turned upon the page,\n"
+        "So speaks Alpha, actor on history's stage.")
+}
+
+# Persona: Beta - The Dreamer (Lyrical, Questioning, Abstract)
+BETA_TEMPLATES = {
+    0: ("Whispers of '{prompt}', do you feel them too?\n"
+        "Like {kw1} adrift in morning's dew, or {kw2} of azure hue.\n"
+        "A fleeting thought, what if it's new?\n"
+        "Beta wonders, sharing this view with you."),
+
+    1: ("What if '{prompt}' is but a shimmering veil?\n"
+        "And {kw1} a lost echo, {kw2} a forgotten tale.\n"
+        "Through mists of doubt, my questions sail,\n"
+        "Beta ponders, where truths prevail or fail."),
+
+    2: ("Imagine '{prompt}', a world unseen, unknown,\n"
+        "Where {kw1} dances lightly, and {kw2} is softly sown.\n"
+        "Is this a fancy, uniquely my own?\n"
+        "Beta queries, from a mind to wonder prone.")
+}
+
 class PoetryAgent:
     def __init__(self, agent_name: str):
         self.agent_name = agent_name
         self.generation_counter = 0
         self.last_prompt_generated_by_me = None # For tracking prompt used by this agent for its own generation
+
+        if self.agent_name.lower() == 'alpha':
+            self.templates = ALPHA_TEMPLATES
+        elif self.agent_name.lower() == 'beta':
+            self.templates = BETA_TEMPLATES
+        else:
+            # Default or fallback if agent name is neither alpha nor beta
+            print(f"Warning: Agent name '{self.agent_name}' not recognized for specific persona templates. Using Alpha's templates as default.")
+            self.templates = ALPHA_TEMPLATES
+
 
     def generate_poetry(self, input_prompt: str, style_guide: dict) -> str:
         """
@@ -21,7 +67,7 @@ class PoetryAgent:
             "what", "when", "where", "why", "how", "thus", "hark", "tale", "verse", "inspired", "unfold",
             "meter", "words", "placed", "lines", "interlaced", "language", "fresh", "avoiding", "cliche",
             "concrete", "scenes", "see", "metaphors", "bloom", "meanings", "deep", "true", "speaks"
-        }
+        } # Note: agent names 'alpha', 'beta' could be added here if they become too prominent as keywords
 
         # Sanitize and split prompt for keywords
         cleaned_prompt = ''.join(char.lower() if char.isalnum() or char == "'" or char.isspace() else ' ' for char in input_prompt)
@@ -29,51 +75,21 @@ class PoetryAgent:
 
         kw1 = prompt_words[0] if len(prompt_words) > 0 else "stars"
         kw2 = prompt_words[1] if len(prompt_words) > 1 else "dreams"
-        kw3 = prompt_words[2] if len(prompt_words) > 2 else "time" # Adding a third keyword for more variation
+        # kw3 removed as new persona templates only use two keywords.
 
-        # Define templates inside the method to easily capture kw1, kw2, kw3, input_prompt, self.agent_name
-        template1 = (
-            f"Upon the theme of '{input_prompt}', my thoughts take flight,\n"
-            f"Of {kw1} bright and {kw2} that fill the night.\n"
-            f"A verse by {self.agent_name}, with focused might,\n"
-            f"Where {kw3} weaves its patterns, dark and light."
+        # Select template from the agent's persona-specific set
+        template_key = self.generation_counter % len(self.templates)
+        chosen_template_format_string = self.templates[template_key]
+
+        # Format the chosen template string
+        generated_poem = chosen_template_format_string.format(
+            prompt=input_prompt,
+            kw1=kw1,
+            kw2=kw2
+            # self.agent_name is part of the template literal, not a format placeholder
         )
-
-        template2 = (
-            f"'{input_prompt}' you say? A challenge I embrace,\n"
-            f"Let {kw1} dance with {kw2} in this poetic space.\n"
-            f"No simple rhyme, but thoughts of deeper grace,\n"
-            f"As {kw3} unfolds, at its own pace,\n"
-            f"From {self.agent_name}, a thoughtful trace."
-        )
-
-        template3 = (
-            f"The core of '{input_prompt}', I now explore,\n"
-            f"Where {kw1} whispers secrets, and {kw2} calls for more.\n"
-            f"Through veils of {kw3}, a different view than offered before,\n"
-            f"{self.agent_name} speaks, opening a new door."
-        )
-
-        template4 = (
-            f"Consider '{input_prompt}', a notion vast and wide,\n"
-            f"With {kw1} as my compass, and {kw2} as my guide.\n"
-            f"Through {kw3}'s long river, my fancies gently glide,\n"
-            f"Crafted by {self.agent_name}, with naught to hide."
-        )
-
-        poem_templates = [template1, template2, template3, template4]
-
-        # Select template and format
-        chosen_template_index = self.generation_counter % len(poem_templates)
-        generated_poem = poem_templates[chosen_template_index]
 
         self.generation_counter += 1
-
-        # Add a small note about which template was used for observation
-        # This is not part of the poem itself, but a meta-comment
-        # generated_poem += f"\n(Template Used: {chosen_template_index + 1})"
-        # Decided against adding this to the poem string directly to keep it clean.
-
         self.last_prompt_generated_by_me = input_prompt # Store the prompt this agent used
         return generated_poem
 

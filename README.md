@@ -6,6 +6,15 @@ This project simulates a system where two AI agents can communicate by exchangin
 
 The primary goal of this foundational codebase is to establish the core components, agent logic stubs, and interaction workflow. A key objective is for the agents to engage in creative interpretation of received poetry, allowing them to generate distinct and original responses rather than mere echoes, fostering a more dynamic and engaging poetic dialogue. This can be expanded upon in the future with real Large Language Model (LLM) integration for poetry generation and the official Google A2A SDK for communication.
 
+## Agent Personas and Unique Poetic Voices
+
+To enhance the distinctiveness of the interacting agents, this simulation now implements basic "Agent Personas":
+
+-   **Agent Alpha ("The Orator"):** Alpha's poetic style is characterized by a more formal, structured, and declarative voice. Its expressions often aim for clarity and reasoned discourse.
+-   **Agent Beta ("The Dreamer"):** Beta's style is more lyrical, questioning, and tends towards abstract imagery and whimsical reflections.
+
+This distinction is primarily achieved within the `PoetryAgent`'s `generate_poetry` method. Each agent persona (specifically "alpha" and "beta" by name) is assigned a unique set of internal poem templates. These template sets for Alpha and Beta are designed to have no overlapping boilerplate phrases or sentence structures, ensuring that their generated poetry is stylistically unique and their "voices" remain clearly distinguishable throughout the conversation. Agents with other names will default to Alpha's templates.
+
 ## Directory Structure
 
 ```
@@ -36,8 +45,8 @@ The primary goal of this foundational codebase is to establish the core componen
 ### `poet_agents/poetry_agent.py`
 - Contains the `PoetryAgent` class, which represents an individual AI agent.
 - **Key Methods:**
-    - `__init__(self, agent_name)`: Initializes the agent with a name and a counter for poem generation.
-    - `generate_poetry(self, input_prompt, style_guide)`: (Stub enhanced for creativity & variety) Generates a piece of poetry based on an input prompt and the `style_guide`. It now utilizes a selection of distinct poem templates and attempts to weave keywords from the prompt into the chosen structure. A counter mechanism ensures the same agent cycles through different templates on successive generations, further diversifying the poetic output. It also stores the prompt it just used.
+    - `__init__(self, agent_name)`: Initializes the agent with a name, a counter for poem generation, and assigns persona-specific poem templates (for "alpha" or "beta") or default templates.
+    - `generate_poetry(self, input_prompt, style_guide)`: (Stub enhanced for creativity & variety) Generates a piece of poetry based on an input prompt and the `style_guide`. It utilizes the agent's assigned persona-specific (or default) set of distinct poem templates and attempts to weave keywords from the prompt into the chosen structure. A counter mechanism ensures the same agent cycles through different templates on successive generations, further diversifying the poetic output. It also stores the prompt it just used.
     - `interpret_poetry(self, poetry)`: (Stub enhanced for deeper interpretation & varied prompting) Processes received poetry to extract key themes/words, focusing on the core content rather than just opening lines. It then uses diverse templates to formulate a new creative prompt string designed to guide the agent in generating an original and thematically relevant response. Includes a simple check to prevent the agent from re-using its own immediately preceding generation prompt.
     - `send_message(self, recipient_id, message_type, payload)`: Constructs a message (dictionary) and saves it as a JSON file (e.g., `message_to_beta.json`), simulating sending a message via A2A.
     - `receive_message(self)`: Checks for an incoming message file (e.g., `message_to_alpha.json`), reads it, and deletes it. Simulates receiving an A2A message.
