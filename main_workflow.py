@@ -56,31 +56,22 @@ def run_workflow():
         print("--------------------------")
 
         if beta_received_message['message_type'] == "initial_poem":
-            print("\nBeta interpreting Alpha's poem...")
-            beta_interpretation = agent_beta.interpret_poetry(beta_received_message['payload'])
-            print("Beta's interpretation:")
-            print("----------------------")
-            print(beta_interpretation)
-            print("----------------------")
+            print(f"\nBeta ({agent_beta.agent_name}) interpreting Alpha's poem to derive a new prompt...")
+            # interpret_poetry now directly returns a creative prompt.
+            # The method itself prints the derived theme and the new prompt.
+            creative_prompt_for_beta = agent_beta.interpret_poetry(beta_received_message['payload'])
 
-            # Safely extract theme from beta_interpretation string
-            # Format: "{agent_name} has received your poem of {num_lines} lines. It seems to speak of '{theme}'. I shall now ponder on {related_theme}."
-            try:
-                theme_part = beta_interpretation.split("It seems to speak of '")[1]
-                extracted_theme = theme_part.split("'")[0]
-            except IndexError:
-                extracted_theme = "the received verse" # Fallback theme
-
-            response_prompt = f"a poetic response to the theme of '{extracted_theme}'"
-            print(f"\nBeta's prompt for response poem: '{response_prompt}'")
-
-            beta_response_poem = agent_beta.generate_poetry(response_prompt, frederick_turner_style)
-            print("\nBeta generated response poetry:")
+            print(f"\nBeta ({agent_beta.agent_name}) generating response poetry based on derived prompt: '{creative_prompt_for_beta}'...")
+            beta_response_poem = agent_beta.generate_poetry(
+                input_prompt=creative_prompt_for_beta, # Use the dynamic prompt from interpret_poetry
+                style_guide=frederick_turner_style
+            )
+            print(f"\nBeta's response poem (to Alpha):")
             print("-------------------------------")
             print(beta_response_poem)
             print("-------------------------------")
 
-            print(f"\nBeta sending response poem to Alpha ({agent_alpha.agent_name})...")
+            print(f"\nBeta ({agent_beta.agent_name}) sending response poem to Alpha ({agent_alpha.agent_name})...")
             agent_beta.send_message(recipient_id=agent_alpha.agent_name, message_type="response_poem", payload=beta_response_poem)
         else:
             print(f"Beta received unexpected message type: {beta_received_message['message_type']}")
@@ -105,12 +96,14 @@ def run_workflow():
         print("---------------------------")
 
         if alpha_received_message['message_type'] == "response_poem":
-            print("\nAlpha interpreting Beta's response poem...")
-            alpha_interpretation_of_response = agent_alpha.interpret_poetry(alpha_received_message['payload'])
-            print("Alpha's interpretation of Beta's response:")
-            print("------------------------------------------")
-            print(alpha_interpretation_of_response)
-            print("------------------------------------------")
+            print(f"\nAlpha ({agent_alpha.agent_name}) interpreting Beta's response poem to derive a new prompt...")
+            # interpret_poetry now directly returns a creative prompt.
+            # The method itself prints the derived theme and the new prompt.
+            creative_prompt_for_alpha_next_turn = agent_alpha.interpret_poetry(alpha_received_message['payload'])
+
+            print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for a potential next turn: '{creative_prompt_for_alpha_next_turn}'")
+            print("Alpha's workflow currently ends here, but this prompt could start another cycle if the workflow was extended.")
+            print("-------------------------------------------------------------------------------------------------")
         else:
             print(f"Alpha received unexpected message type: {alpha_received_message['message_type']}")
     else:

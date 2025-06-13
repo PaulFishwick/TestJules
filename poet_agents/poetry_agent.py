@@ -55,39 +55,53 @@ class PoetryAgent:
     def interpret_poetry(self, poetry: str) -> str:
         """
         Provides a basic interpretation of the given poetry.
-        This is currently a stub and will be expanded later.
+        This is currently a stub and will be expanded. Its goal is to return a new creative prompt.
         """
-        lines = poetry.split('\n')
-        num_lines = len(lines)
+        # Sanitize poetry by removing punctuation and making it lowercase
+        # Keep apostrophes for words like "dream's" but remove other punctuation
+        cleaned_poetry = ''.join(char.lower() if char.isalnum() or char == "'" or char.isspace() else ' ' for char in poetry)
+        words = cleaned_poetry.split()
 
-        # Attempt to extract a theme (very basic: first non-empty line's first word, or a default)
-        theme = "an unknown essence"
-        for line in lines:
-            if line.strip():
-                # Let's try to get a more meaningful word if possible, not just "A" or "Hark"
-                words = line.strip().split()
-                if len(words) > 2 and words[0].lower() in ["a", "an", "the", "hark", "o", "in", "with", "thus"]:
-                    theme = words[1] if len(words) > 1 else words[0]
-                elif words:
-                    theme = words[0]
-                break
-
-        related_theme_map = {
-            "sunrise": "the dawn of new beginnings",
-            "moon": "the mysteries of the night",
-            "love": "the depths of human connection",
-            "war": "the resilience of the human spirit",
-            "dream": "the landscapes of the mind"
+        common_words = {
+            "the", "a", "an", "is", "of", "and", "to", "in", "it", "that", "this", "i", "you", "he", "she", "was",
+            "for", "on", "are", "with", "as", "my", "thus", "hark", "verse", "inspired", "tale", "unfold", "meter",
+            "words", "placed", "lines", "interlaced", "language", "fresh", "avoiding", "cliche", "concrete", "scenes",
+            "see", "metaphors", "bloom", "meanings", "deep", "true", "speaks", "poet"
         }
-        related_theme = related_theme_map.get(theme.lower().rstrip(",.?!"), "its profound meanings")
 
+        # Filter out common words and words shorter than 4 characters
+        significant_words = [word for word in words if word.isalpha() and word not in common_words and len(word) > 3]
 
-        interpretation = (
-            f"{self.agent_name} has received your poem of {num_lines} lines. "
-            f"It seems to speak of '{theme}'. "
-            f"I shall now ponder on {related_theme}."
-        )
-        return interpretation
+        if not significant_words:
+            # Fallback if no significant words are found
+            extracted_theme = "silence"
+            prompt_starters = [
+                "a poem born from quiet contemplation",
+                "the echo of unspoken thoughts",
+                "whispers from a tranquil void",
+                "meditations on the unseen"
+            ]
+            # Deterministic choice for fallback to ensure reproducibility
+            new_prompt = prompt_starters[len(poetry) % len(prompt_starters)]
+        else:
+            # Deterministically pick the last significant word as the theme
+            extracted_theme = significant_words[-1]
+
+            # Formulate a new prompt based on this theme
+            prompt_starters = [
+                f"dreams inspired by {extracted_theme}",
+                f"secrets of the {extracted_theme}",
+                f"a new song about the journey of {extracted_theme}",
+                f"the mystery of {extracted_theme}'s heart",
+                f"exploring the shadows of {extracted_theme}",
+                f"what if {extracted_theme} could speak?",
+                f"the world within a {extracted_theme}"
+            ]
+            # Deterministic choice for the prompt starter (e.g., based on length of theme or number of significant words)
+            new_prompt = prompt_starters[len(extracted_theme) % len(prompt_starters)]
+
+        print(f"[{self.agent_name}] Interpreted theme: '{extracted_theme}'. New creative prompt: '{new_prompt}'")
+        return new_prompt
 
     def send_message(self, recipient_id: str, message_type: str, payload: str):
         """
@@ -146,13 +160,25 @@ if __name__ == '__main__':
     agent_two = PoetryAgent(agent_name=agent_two_name)
 
     print(f"\n--- {agent_one.agent_name} generating a poem ---")
-    prompt = "the silent wisdom of ancient stones"
-    poem_content = agent_one.generate_poetry(prompt, frederick_turner_style)
-    print("\nGenerated Poem:\n")
-    print(poem_content)
+    initial_prompt = "the silent wisdom of ancient stones"
+    poem_content = agent_one.generate_poetry(initial_prompt, frederick_turner_style)
+    print("\nGenerated Poem by {}:\n{}".format(agent_one.agent_name, poem_content))
 
-    # Agent One sends the poem to Agent Two
-    print(f"\n--- {agent_one.agent_name} sending poem to {agent_two.agent_name} ---")
+    # Demonstrate new interpret_poetry functionality (Agent One interprets its own poem for a new prompt)
+    print(f"\n--- {agent_one.agent_name} interpreting its own poem to generate a new prompt ---")
+    new_prompt_from_interpretation = agent_one.interpret_poetry(poem_content)
+    print(f"[{agent_one.agent_name}] New prompt derived: '{new_prompt_from_interpretation}'")
+
+    # Agent One generates another poem based on this new prompt
+    print(f"\n--- {agent_one.agent_name} generating a second poem based on the derived prompt ---")
+    second_poem_content = agent_one.generate_poetry(new_prompt_from_interpretation, frederick_turner_style)
+    print("\nGenerated Second Poem by {}:\n{}".format(agent_one.agent_name, second_poem_content))
+
+
+    # Simulate Sending and Receiving for a full cycle using the new interpret_poetry
+    print(f"\n\n--- SIMULATING MESSAGE EXCHANGE WITH NEW INTERPRETATION LOGIC ---")
+    # Agent One sends the *first* poem to Agent Two
+    print(f"\n--- {agent_one.agent_name} sending original poem to {agent_two.agent_name} ---")
     agent_one.send_message(recipient_id=agent_two.agent_name, message_type="poetry_submission", payload=poem_content)
 
     # Agent Two attempts to receive the message
@@ -160,29 +186,37 @@ if __name__ == '__main__':
     received_message_by_two = agent_two.receive_message()
 
     if received_message_by_two:
-        print(f"\n--- {agent_two.agent_name} processes the received poem ---")
+        print(f"\n--- {agent_two.agent_name} processes the received poem from {received_message_by_two.get('sender_id')} ---")
         if received_message_by_two["message_type"] == "poetry_submission":
-            interpretation = agent_two.interpret_poetry(received_message_by_two["payload"])
-            print(interpretation)
+            # Agent Two interprets the received poem to get a NEW PROMPT
+            print(f"\n--- {agent_two.agent_name} interpreting poem to generate a response prompt ---")
+            prompt_for_response_poem = agent_two.interpret_poetry(received_message_by_two["payload"])
 
-            # Agent Two sends back an interpretation
-            print(f"\n--- {agent_two.agent_name} sending interpretation to {agent_one.agent_name} ---")
-            agent_two.send_message(recipient_id=agent_one.agent_name, message_type="poetry_response", payload=interpretation)
+            # Agent Two generates a response poem using this new prompt
+            print(f"\n--- {agent_two.agent_name} generating response poem based on: '{prompt_for_response_poem}' ---")
+            response_poem_content = agent_two.generate_poetry(prompt_for_response_poem, frederick_turner_style)
+            print("\nGenerated Response Poem by {}:\n{}".format(agent_two.agent_name, response_poem_content))
 
-            # Agent One attempts to receive the interpretation
-            print(f"\n--- {agent_one.agent_name} attempting to receive interpretation ---")
-            interpretation_message = agent_one.receive_message()
-            if interpretation_message:
-                print(f"\n--- {agent_one.agent_name} received interpretation: ---")
-                print(f"From: {interpretation_message['sender_id']}")
-                print(f"Type: {interpretation_message['message_type']}")
-                print(f"Content: {interpretation_message['payload']}")
+            # Agent Two sends back the response poem
+            print(f"\n--- {agent_two.agent_name} sending response poem to {agent_one.agent_name} ---")
+            agent_two.send_message(recipient_id=agent_one.agent_name, message_type="poetry_response", payload=response_poem_content)
+
+            # Agent One attempts to receive the response
+            print(f"\n--- {agent_one.agent_name} attempting to receive response ---")
+            response_message = agent_one.receive_message()
+            if response_message:
+                print(f"\n--- {agent_one.agent_name} received response from {response_message.get('sender_id')}: ---")
+                print(f"Type: {response_message['message_type']}")
+                # Agent One now interprets this response poem to get another new prompt
+                print(f"\n--- {agent_one.agent_name} interpreting response poem for a new creative direction ---")
+                final_prompt_idea = agent_one.interpret_poetry(response_message['payload'])
+                print(f"[{agent_one.agent_name}] Final prompt idea from Beta's response: '{final_prompt_idea}'")
             else:
-                print(f"{agent_one.agent_name} found no message.")
+                print(f"{agent_one.agent_name} found no response message.")
         else:
             print(f"{agent_two.agent_name} received an unexpected message type: {received_message_by_two['message_type']}")
     else:
-        print(f"{agent_two.agent_name} found no message.")
+        print(f"{agent_two.agent_name} found no message from {agent_one_name}.")
 
     # Test case: Attempt to receive when no message is present for agent_one
     print(f"\n--- {agent_one.agent_name} attempting to receive message (expecting none) ---")

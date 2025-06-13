@@ -4,7 +4,7 @@
 
 This project simulates a system where two AI agents can communicate by exchanging poetry written in the style of the poet Frederick Turner. The communication itself is a simulation of Google's Agent-to-Agent (A2A) protocol, currently implemented using file-based message passing (JSON files).
 
-The primary goal of this foundational codebase is to establish the core components, agent logic stubs, and interaction workflow that can be expanded upon in the future with real Large Language Model (LLM) integration for poetry generation and the official Google A2A SDK for communication.
+The primary goal of this foundational codebase is to establish the core components, agent logic stubs, and interaction workflow. A key objective is for the agents to engage in creative interpretation of received poetry, allowing them to generate distinct and original responses rather than mere echoes, fostering a more dynamic and engaging poetic dialogue. This can be expanded upon in the future with real Large Language Model (LLM) integration for poetry generation and the official Google A2A SDK for communication.
 
 ## Directory Structure
 
@@ -38,7 +38,7 @@ The primary goal of this foundational codebase is to establish the core componen
 - **Key Methods:**
     - `__init__(self, agent_name)`: Initializes the agent with a name.
     - `generate_poetry(self, input_prompt, style_guide)`: (Currently a stub) Generates a piece of poetry based on an input prompt and the `style_guide`. It uses simple string manipulation to create a plausible poem.
-    - `interpret_poetry(self, poetry)`: (Currently a stub) Simulates the agent understanding received poetry. It performs basic analysis like line counting and mock theme extraction.
+    - `interpret_poetry(self, poetry)`: (Stub enhanced for creativity) Processes received poetry to extract a theme or keyword, and then formulates and returns a *new creative prompt string*. This prompt is designed to guide the agent in generating a thematically related but original response.
     - `send_message(self, recipient_id, message_type, payload)`: Constructs a message (dictionary) and saves it as a JSON file (e.g., `message_to_beta.json`), simulating sending a message via A2A.
     - `receive_message(self)`: Checks for an incoming message file (e.g., `message_to_alpha.json`), reads it, and deletes it. Simulates receiving an A2A message.
 
@@ -51,9 +51,10 @@ The primary goal of this foundational codebase is to establish the core componen
 - This script orchestrates a simple interaction between two `PoetryAgent` instances (e.g., "alpha" and "beta").
 - **Workflow:**
     1. Agent Alpha generates and "sends" an initial poem to Agent Beta.
-    2. Agent Beta "receives" the poem, "interprets" it, generates a response poem, and "sends" it back.
-    3. Agent Alpha "receives" and "interprets" the response.
+    2. Agent Beta "receives" the poem, "interprets" it (deriving a new creative prompt), generates a response poem based on this new prompt, and "sends" it back.
+    3. Agent Alpha "receives" and "interprets" the response (deriving another new creative prompt for a potential next turn).
 - It uses `print()` statements to show the progression of the interaction and the content of the messages.
+- It demonstrates how an agent, after receiving and interpreting a poem, uses the dynamically generated creative prompt from `interpret_poetry` to craft its own poetic response, ensuring a more varied exchange.
 
 ## How to Run
 
