@@ -1,11 +1,113 @@
 import time # To add slight delays for readability if needed, and for unique filenames if agents run too fast.
+import subprocess
+import sys
+
+# --- ReportLab Imports with Installation Attempt ---
+REPORTLAB_AVAILABLE = False
+try:
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    REPORTLAB_AVAILABLE = True
+except ImportError:
+    print("ReportLab not found. Attempting to install...")
+    try:
+        # Using sys.executable to ensure using the correct pip
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "reportlab"])
+        print("ReportLab installation attempted. Re-importing...")
+        # Attempt to import again after installation
+        # Forcing a re-check or re-import can be tricky.
+        # Python's import system caches, and sys.path might not be updated immediately
+        # for the current running process. This re-import might still fail here.
+        import site # Try to refresh sys.path
+        from importlib import reload
+        reload(site)
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import inch
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        REPORTLAB_AVAILABLE = True
+        print("ReportLab imported successfully after installation attempt.")
+    except Exception as e:
+        print(f"Could not install or import ReportLab after attempt: {e}. PDF generation will be skipped.")
+        # Define dummy classes if import still fails, so the rest of the script can be parsed
+        class SimpleDocTemplate:
+            def __init__(self, filename): self.filename = filename
+            def build(self, story): print(f"Dummy PDF Build for {self.filename} with story: {len(story)} elements")
+        class Paragraph:
+            def __init__(self, text, style): self.text = text; self.style = style
+        class Spacer:
+            def __init__(self, width, height): self.width = width; self.height = height
+        def getSampleStyleSheet(): return {'h1': type('Style', (), {'alignment':0, 'fontSize':18, 'spaceAfter':1}), 'h3': type('Style', (), {'fontSize':12, 'spaceBefore':1, 'spaceAfter':1}), 'Normal': type('Style', (), {'fontSize':10, 'leftIndent':0, 'spaceAfter':1, 'leading':12})}
+        inch = 72.0 # default value
+        TA_CENTER, TA_LEFT = 0, 2 # dummy alignment values
+        print("Defined dummy ReportLab components to allow script to proceed without PDF functionality.")
+
 from poet_agents.poetry_agent import PoetryAgent
 from poet_agents.style_guide import frederick_turner_style
+
+def print_formatted_poem(agent_name: str, poem_text: str, title: str = "Generated Poem"):
+    """Helper function to print poems with a standard format."""
+    print(f"\n--- {agent_name}'s {title} ---")
+    # print(f"{agent_name.upper()}:") # Alternative simpler header
+    for line in poem_text.split('\n'):
+        print(f"  {line}")
+    print("-----------------------------------")
+
+def create_conversation_pdf(title_prompt: str, conversation_data: list, filename: str):
+    if not REPORTLAB_AVAILABLE:
+        print("ReportLab is not available or failed to import. Skipping PDF generation.")
+        return
+
+    print(f"\nGenerating PDF: {filename}...")
+    doc = SimpleDocTemplate(filename)
+    styles = getSampleStyleSheet()
+
+    story = []
+
+    # Title Style
+    title_style = styles['h1']
+    title_style.alignment = TA_CENTER
+    title_style.fontSize = 18
+    title_style.spaceAfter = 0.5 * inch
+
+    # Agent Name Style
+    agent_name_style = styles['h3']
+    agent_name_style.fontSize = 12
+    agent_name_style.spaceBefore = 0.2 * inch
+    agent_name_style.spaceAfter = 0.1 * inch
+
+    # Poem Style
+    poem_style = styles['Normal']
+    poem_style.fontSize = 10
+    poem_style.leftIndent = 0.2 * inch # Indent poem lines
+    poem_style.spaceAfter = 0.1 * inch
+    poem_style.leading = 12 # Line spacing for poems
+
+    # Add Title
+    story.append(Paragraph(title_prompt.title(), title_style)) # .title() for title case
+
+    # Add Conversation
+    for entry in conversation_data:
+        agent_name = entry['agent'].upper()
+        poem_text = entry['poem'].replace('\n', '<br/>\n') # Preserve line breaks in PDF
+
+        story.append(Paragraph(f"{agent_name}:", agent_name_style))
+        story.append(Paragraph(poem_text, poem_style))
+        story.append(Spacer(1, 0.1 * inch)) # Small spacer after each poem block
+
+    try:
+        doc.build(story)
+        print(f"PDF '{filename}' generated successfully.")
+    except Exception as e:
+        print(f"Error generating PDF: {e}")
 
 def run_workflow():
     print("Initializing Agents...")
     agent_alpha = PoetryAgent(agent_name="alpha")
     agent_beta = PoetryAgent(agent_name="beta")
+    conversation_log = []
     print(f"Agent Alpha: {agent_alpha.agent_name}")
     print(f"Agent Beta: {agent_beta.agent_name}")
 
@@ -26,17 +128,15 @@ def run_workflow():
 
     # 1. Agent Alpha's First Turn
     print("\n--- Agent Alpha's First Turn ---")
-    initial_prompt = "the dawn of creativity"
-    print(f"Alpha's initial prompt: '{initial_prompt}'")
+    alpha_initial_prompt = "themes of cosmic wonder" # Store initial prompt
+    print(f"Alpha's initial prompt for first poem: '{alpha_initial_prompt}'")
 
-    alpha_poem = agent_alpha.generate_poetry(initial_prompt, frederick_turner_style)
-    print("\nAlpha generated poetry:")
-    print("-------------------------")
-    print(alpha_poem)
-    print("-------------------------")
+    alpha_poem_1 = agent_alpha.generate_poetry(alpha_initial_prompt, frederick_turner_style)
+    conversation_log.append({'agent': agent_alpha.agent_name, 'poem': alpha_poem_1})
+    print_formatted_poem(agent_alpha.agent_name, alpha_poem_1, "First Poem (to Beta)")
 
-    print(f"\nAlpha sending poem to Beta ({agent_beta.agent_name})...")
-    agent_alpha.send_message(recipient_id=agent_beta.agent_name, message_type="initial_poem", payload=alpha_poem)
+    print(f"\nAlpha ({agent_alpha.agent_name}) sending its first poem to Beta ({agent_beta.agent_name})...")
+    agent_alpha.send_message(recipient_id=agent_beta.agent_name, message_type="initial_poem", payload=alpha_poem_1)
 
     # Adding a small delay to simulate message transfer and allow file system to catch up if necessary
     time.sleep(0.1)
@@ -56,32 +156,22 @@ def run_workflow():
         print("--------------------------")
 
         if beta_received_message['message_type'] == "initial_poem":
-            print("\nBeta interpreting Alpha's poem...")
-            beta_interpretation = agent_beta.interpret_poetry(beta_received_message['payload'])
-            print("Beta's interpretation:")
-            print("----------------------")
-            print(beta_interpretation)
-            print("----------------------")
+            print(f"\nBeta ({agent_beta.agent_name}) interpreting Alpha's poem to derive a new prompt...")
+            # interpret_poetry now directly returns a creative prompt.
+            # The method itself prints the derived theme and the new prompt.
+            creative_prompt_for_beta = agent_beta.interpret_poetry(beta_received_message['payload'])
+            # The interpret_poetry method already prints: "[beta] Interpreted theme: '...'. New creative prompt: '...'"
 
-            # Safely extract theme from beta_interpretation string
-            # Format: "{agent_name} has received your poem of {num_lines} lines. It seems to speak of '{theme}'. I shall now ponder on {related_theme}."
-            try:
-                theme_part = beta_interpretation.split("It seems to speak of '")[1]
-                extracted_theme = theme_part.split("'")[0]
-            except IndexError:
-                extracted_theme = "the received verse" # Fallback theme
+            print(f"\nBeta ({agent_beta.agent_name}) generating its first response poem based on derived prompt: '{creative_prompt_for_beta}'...")
+            beta_response_poem_1 = agent_beta.generate_poetry(
+                input_prompt=creative_prompt_for_beta, # Use the dynamic prompt from interpret_poetry
+                style_guide=frederick_turner_style
+            )
+            conversation_log.append({'agent': agent_beta.agent_name, 'poem': beta_response_poem_1})
+            print_formatted_poem(agent_beta.agent_name, beta_response_poem_1, "First Response Poem (to Alpha)")
 
-            response_prompt = f"a poetic response to the theme of '{extracted_theme}'"
-            print(f"\nBeta's prompt for response poem: '{response_prompt}'")
-
-            beta_response_poem = agent_beta.generate_poetry(response_prompt, frederick_turner_style)
-            print("\nBeta generated response poetry:")
-            print("-------------------------------")
-            print(beta_response_poem)
-            print("-------------------------------")
-
-            print(f"\nBeta sending response poem to Alpha ({agent_alpha.agent_name})...")
-            agent_beta.send_message(recipient_id=agent_alpha.agent_name, message_type="response_poem", payload=beta_response_poem)
+            print(f"\nBeta ({agent_beta.agent_name}) sending its first response poem to Alpha ({agent_alpha.agent_name})...")
+            agent_beta.send_message(recipient_id=agent_alpha.agent_name, message_type="response_poem", payload=beta_response_poem_1)
         else:
             print(f"Beta received unexpected message type: {beta_received_message['message_type']}")
     else:
@@ -105,18 +195,77 @@ def run_workflow():
         print("---------------------------")
 
         if alpha_received_message['message_type'] == "response_poem":
-            print("\nAlpha interpreting Beta's response poem...")
-            alpha_interpretation_of_response = agent_alpha.interpret_poetry(alpha_received_message['payload'])
-            print("Alpha's interpretation of Beta's response:")
-            print("------------------------------------------")
-            print(alpha_interpretation_of_response)
-            print("------------------------------------------")
+            print(f"\nAlpha ({agent_alpha.agent_name}) interpreting Beta's response poem to derive a new prompt...")
+            # interpret_poetry now directly returns a creative prompt.
+            # The method itself prints the derived theme and the new prompt.
+            creative_prompt_for_alpha_next_turn = agent_alpha.interpret_poetry(alpha_received_message['payload'])
+            # The above call to interpret_poetry now prints the derived prompt, so the next line is redundant.
+            # print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for its second poem: '{creative_prompt_for_alpha_next_turn}'")
+
+            print(f"\nAlpha ({agent_alpha.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_alpha_next_turn}'...")
+            alpha_poem_2 = agent_alpha.generate_poetry(
+                input_prompt=creative_prompt_for_alpha_next_turn,
+                style_guide=frederick_turner_style
+            )
+            conversation_log.append({'agent': agent_alpha.agent_name, 'poem': alpha_poem_2})
+            print_formatted_poem(agent_alpha.agent_name, alpha_poem_2, "Second Poem (to Beta)")
+
+            print(f"\nAlpha ({agent_alpha.agent_name}) sending its second poem to Beta ({agent_beta.agent_name})...")
+            agent_alpha.send_message(recipient_id=agent_beta.agent_name, message_type="second_poem", payload=alpha_poem_2)
+
+            # Adding a small delay
+            time.sleep(0.1)
+
+            # 4. Agent Beta's Second Response Turn
+            print("\n--- Agent Beta's Second Response Turn ---")
+            print(f"Beta ({agent_beta.agent_name}) attempting to receive Alpha's second poem...")
+            beta_received_second_message = agent_beta.receive_message()
+
+            if beta_received_second_message:
+                print("\nBeta received Alpha's second poem:")
+                print("------------------------------------")
+                print(f"From: {beta_received_second_message['sender_id']}")
+                print(f"Type: {beta_received_second_message['message_type']}")
+                print("Payload (Second Poem from Alpha):")
+                print(beta_received_second_message['payload'])
+                print("------------------------------------")
+
+                if beta_received_second_message['message_type'] == "second_poem":
+                    print(f"\nBeta ({agent_beta.agent_name}) interpreting Alpha's second poem to derive a new prompt...")
+                    creative_prompt_for_beta_second_turn = agent_beta.interpret_poetry(beta_received_second_message['payload'])
+
+                    print(f"\nBeta ({agent_beta.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_beta_second_turn}'...")
+                    beta_poem_2 = agent_beta.generate_poetry(
+                        input_prompt=creative_prompt_for_beta_second_turn,
+                        style_guide=frederick_turner_style
+                    )
+                    conversation_log.append({'agent': agent_beta.agent_name, 'poem': beta_poem_2})
+                    print_formatted_poem(agent_beta.agent_name, beta_poem_2, "Second Response Poem (Final)")
+                    # Workflow ends with Beta's second poem generation for now.
+                else:
+                    print(f"Beta received unexpected message type: {beta_received_second_message['message_type']}")
+            else:
+                print(f"Beta ({agent_beta.agent_name}) received no second message from Alpha.")
         else:
             print(f"Alpha received unexpected message type: {alpha_received_message['message_type']}")
     else:
-        print("Alpha received no message.")
+        print(f"Alpha ({agent_alpha.agent_name}) received no response message from Beta.")
 
     print("\n--- [END WORKFLOW] ---")
+
+    # Generate the PDF with the conversation
+    if conversation_log and 'alpha_initial_prompt' in locals() and alpha_initial_prompt:
+        output_pdf_filename = "poetic_exchange.pdf"
+        # The title_prompt for create_conversation_pdf should be the actual initial prompt string.
+        create_conversation_pdf(
+            title_prompt=alpha_initial_prompt, # This was defined at the start of Alpha's turn
+            conversation_data=conversation_log,
+            filename=output_pdf_filename
+        )
+    else:
+        print("\nSkipping PDF generation as conversation data or initial prompt was missing.")
+
+    print("\nEnd of poetic exchange simulation.")
 
 if __name__ == "__main__":
     run_workflow()
