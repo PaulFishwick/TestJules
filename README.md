@@ -36,9 +36,9 @@ The primary goal of this foundational codebase is to establish the core componen
 ### `poet_agents/poetry_agent.py`
 - Contains the `PoetryAgent` class, which represents an individual AI agent.
 - **Key Methods:**
-    - `__init__(self, agent_name)`: Initializes the agent with a name.
-    - `generate_poetry(self, input_prompt, style_guide)`: (Currently a stub) Generates a piece of poetry based on an input prompt and the `style_guide`. It uses simple string manipulation to create a plausible poem.
-    - `interpret_poetry(self, poetry)`: (Stub enhanced for creativity) Processes received poetry to extract a theme or keyword, and then formulates and returns a *new creative prompt string*. This prompt is designed to guide the agent in generating a thematically related but original response.
+    - `__init__(self, agent_name)`: Initializes the agent with a name and a counter for poem generation.
+    - `generate_poetry(self, input_prompt, style_guide)`: (Stub enhanced for creativity & variety) Generates a piece of poetry based on an input prompt and the `style_guide`. It now utilizes a selection of distinct poem templates and attempts to weave keywords from the prompt into the chosen structure. A counter mechanism ensures the same agent cycles through different templates on successive generations, further diversifying the poetic output. It also stores the prompt it just used.
+    - `interpret_poetry(self, poetry)`: (Stub enhanced for deeper interpretation & varied prompting) Processes received poetry to extract key themes/words, focusing on the core content rather than just opening lines. It then uses diverse templates to formulate a new creative prompt string designed to guide the agent in generating an original and thematically relevant response. Includes a simple check to prevent the agent from re-using its own immediately preceding generation prompt.
     - `send_message(self, recipient_id, message_type, payload)`: Constructs a message (dictionary) and saves it as a JSON file (e.g., `message_to_beta.json`), simulating sending a message via A2A.
     - `receive_message(self)`: Checks for an incoming message file (e.g., `message_to_alpha.json`), reads it, and deletes it. Simulates receiving an A2A message.
 

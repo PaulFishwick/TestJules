@@ -199,8 +199,8 @@ def run_workflow():
             # interpret_poetry now directly returns a creative prompt.
             # The method itself prints the derived theme and the new prompt.
             creative_prompt_for_alpha_next_turn = agent_alpha.interpret_poetry(alpha_received_message['payload'])
-
-            print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for its second poem: '{creative_prompt_for_alpha_next_turn}'")
+            # The above call to interpret_poetry now prints the derived prompt, so the next line is redundant.
+            # print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for its second poem: '{creative_prompt_for_alpha_next_turn}'")
 
             print(f"\nAlpha ({agent_alpha.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_alpha_next_turn}'...")
             alpha_poem_2 = agent_alpha.generate_poetry(
