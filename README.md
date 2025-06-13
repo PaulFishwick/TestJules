@@ -73,6 +73,16 @@ The primary goal of this foundational codebase is to establish the core componen
     - The derived creative prompts that guide each agent's response.
     - The creation and deletion of temporary JSON files (e.g., `message_to_alpha.json`, `message_to_beta.json`) in the root directory, which represent the messages.
 
+## Output Artifacts
+
+Upon successful completion, the `main_workflow.py` script generates a PDF file named `poetic_exchange.pdf` in the root directory of the project.
+
+This PDF includes:
+- A bold-faced title, taken from Agent Alpha's initial poetic prompt.
+- The complete four-poem conversation between Agent Alpha and Agent Beta, with each agent's contribution clearly attributed.
+
+This feature uses the [ReportLab](https://www.reportlab.com/opensource/) Python library for PDF generation. If ReportLab is not found in your Python environment, the script will attempt to install it automatically.
+
 ## Current Status & Future Work
 
 - **Simulated Components:**
