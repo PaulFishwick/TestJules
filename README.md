@@ -68,6 +68,7 @@ Beyond direct phrase referencing, the agents now strive for deeper thematic cohe
     3. Agent Alpha "receives" Beta's response, "interprets" it (deriving another new creative prompt), generates its second poem, and "sends" it to Beta.
     4. Agent Beta "receives" Alpha's second poem, "interprets" it, and generates its second response poem.
 - The script simulates a **two-round poetic exchange**.
+- To enhance replayability, Agent Alpha's initial poetic theme is now randomly selected at the start of each simulation from a predefined list, leading to a unique conversational journey every time.
 - It uses `print()` statements to show the progression of the interaction, including message details and derived prompts.
 - It demonstrates how agents use dynamically generated creative prompts from `interpret_poetry` to craft their responses, fostering a more varied exchange.
 

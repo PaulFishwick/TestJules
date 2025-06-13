@@ -1,6 +1,7 @@
 import time # To add slight delays for readability if needed, and for unique filenames if agents run too fast.
 import subprocess
 import sys
+import random
 
 # --- ReportLab Imports with Installation Attempt ---
 REPORTLAB_AVAILABLE = False
@@ -54,6 +55,14 @@ def print_formatted_poem(agent_name: str, poem_text: str, title: str = "Generate
     for line in poem_text.split('\n'):
         print(f"  {line}")
     print("-----------------------------------")
+
+ALPHA_INITIAL_PROMPTS_LIST = [
+    "themes of cosmic wonder and stellar destiny",
+    "the silent wisdom of ancient mountains and hidden valleys",
+    "a quest for the ephemeral city of echoes and lost dreams",
+    "the rhythmic dance of ocean tides under a cryptic moon",
+    "secrets whispered by the winds on a desolate plain"
+]
 
 def create_conversation_pdf(title_prompt: str, conversation_data: list, filename: str):
     if not REPORTLAB_AVAILABLE:
@@ -128,7 +137,8 @@ def run_workflow():
 
     # 1. Agent Alpha's First Turn
     print("\n--- Agent Alpha's First Turn ---")
-    alpha_initial_prompt_text = "themes of cosmic wonder" # This is the pure text prompt
+    alpha_initial_prompt_text = random.choice(ALPHA_INITIAL_PROMPTS_LIST) # Select random initial prompt
+    # alpha_initial_prompt_text = "themes of cosmic wonder and stellar destiny" # Hardcoded for this test
     print(f"Alpha's initial prompt for first poem: '{alpha_initial_prompt_text}'")
 
     # Alpha's first poem has no prior reference.

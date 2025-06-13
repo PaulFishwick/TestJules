@@ -75,29 +75,30 @@ class PoetryAgent:
             "theirs", "themselves",
             "prompt", "kw1", "kw2", "reference_phrase", # From template placeholders
             "alpha", "beta", # Agent names
-            # Common words from Alpha's templates
+            # Common words from Alpha's templates (review if all are still in current templates)
             "hark", "articulate", "matter", "import", "hold", "court", "observe", "structure", "meticulously",
             "wrought", "reasoned", "discourse", "taught", "consider", "clarity", "precision", "facets",
             "logical", "decision", "fleeting", "whim", "studied", "keen", "vision", "presents", "theme",
             "erudition", "subject", "commands", "stage", "focus", "engage", "sage", "line", "considered",
             "turned", "page", "speaks", "actor", "historys", "point", "noted", "turn", "bring", "forth",
             "core", "slumbering", "thought", "unkempt", "argument", "fallacy", "exempt", "perspective",
-            "attempt", "discourse", "proceed", "foundation", "vital", "seed", "logic", "carefully", "planted",
+            "attempt", "proceed", "foundation", "vital", "seed", "logic", "carefully", "planted",
             "creed", "elaborates", "fulfilling", "reasons", "need", "indeed", "leads", "well", "reflections",
             "herein", "confines", "promptly", "unblocked", "cogent", "thesis", "precisely", "interlocked",
             "concludes", "ensuring", "minds", "unlocked", "regarding", "insightful", "anew", "critical",
             "counterpoint", "varied", "grand", "touched", "expanded", "mention",
-            # Common words from Beta's templates
-            "whispers", "feel", "adrift", "mornings", "dew", "azure", "hue", "thought", "startlingly",
-            "wonders", "sharing", "view", "shimmering", "veil", "lost", "echo", "forgotten", "tale",
+            # Common words from Beta's templates (review if all are still in current templates)
+            "whispers", "feel", "adrift", "mornings", "dew", "azure", "hue", # "thought" is already common, "startlingly" too specific
+            "wonders", "sharing", "view", "shimmering", "veil", "echo", "forgotten", "tale", # "lost" removed
             "mists", "doubt", "questions", "sail", "ponders", "truths", "prevail", "fail", "imagine",
             "unseen", "unknown", "dances", "lightly", "softly", "sown", "fancy", "uniquely", "queries",
-            "mind", "prone", "curious", "spun", "dream", "neath", "cosmic", "mystic", "sun", "join",
+            "mind", "prone", "curious", "spun", "dream", "neath", "mystic", "sun", "join", # "cosmic" removed
             "ethereal", "fun", "muses", "course", "run", "hearing", "sets", "alight", "stray",
             "yesterday", "spirit", "wanders", "come", "may", "reflective", "play", "bloomed", "shimmer",
             "gloom", "notion", "fancies", "freely", "roam", "home", "make", "unfolding", "connection",
             "spoke", "elusive", "drifting", "wistful", "ideas", "combined", "gently", "sparking", "newly",
             "seeds", "beautifully", "grown", "shared", "deep"
+            # "secrets" was removed by not being in the list above
         }
 
 
