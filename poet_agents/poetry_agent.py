@@ -1,6 +1,9 @@
 import json
 import datetime
 import os # For file operations like delete and check existence
+import collections # For Counter
+import string # For punctuation removal
+
 from .style_guide import frederick_turner_style
 
 # Persona: Alpha - The Orator (Formal, Structured, Declarative)
@@ -54,6 +57,49 @@ class PoetryAgent:
             print(f"Warning: Agent name '{self.agent_name}' not recognized for specific persona templates. Using Alpha's templates as default.")
             self.templates = ALPHA_TEMPLATES
 
+        self.common_words_filter = {
+            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+            "have", "has", "had", "do", "does", "did", "will", "would", "should", "can",
+            "could", "may", "might", "must", "and", "but", "or", "nor", "for", "so", "yet",
+            "if", "then", "else", "when", "where", "why", "how", "what", "which", "who",
+            "whom", "whose", "of", "at", "by", "from", "to", "in", "out", "on", "off",
+            "over", "under", "again", "further", "once", "here", "there", "all",
+            "any", "both", "each", "few", "more", "most", "other", "some", "such", "no",
+            "not", "only", "own", "same", "than", "too", "very", "s", "t",
+            "just", "don", "shouldve", "now", "d", "ll", "m", "re", "ve", "y",
+            "ain", "aren", "couldn", "didn", "doesn", "hadn", "hasn", "haven", "isn",
+            "ma", "mightn", "mustn", "needn", "shan", "shouldn", "wasn", "weren",
+            "won", "wouldn", "i", "me", "my", "myself", "we", "our", "ours", "ourselves",
+            "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself",
+            "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their",
+            "theirs", "themselves",
+            "prompt", "kw1", "kw2", "reference_phrase", # From template placeholders
+            "alpha", "beta", # Agent names
+            # Common words from Alpha's templates
+            "hark", "articulate", "matter", "import", "hold", "court", "observe", "structure", "meticulously",
+            "wrought", "reasoned", "discourse", "taught", "consider", "clarity", "precision", "facets",
+            "logical", "decision", "fleeting", "whim", "studied", "keen", "vision", "presents", "theme",
+            "erudition", "subject", "commands", "stage", "focus", "engage", "sage", "line", "considered",
+            "turned", "page", "speaks", "actor", "historys", "point", "noted", "turn", "bring", "forth",
+            "core", "slumbering", "thought", "unkempt", "argument", "fallacy", "exempt", "perspective",
+            "attempt", "discourse", "proceed", "foundation", "vital", "seed", "logic", "carefully", "planted",
+            "creed", "elaborates", "fulfilling", "reasons", "need", "indeed", "leads", "well", "reflections",
+            "herein", "confines", "promptly", "unblocked", "cogent", "thesis", "precisely", "interlocked",
+            "concludes", "ensuring", "minds", "unlocked", "regarding", "insightful", "anew", "critical",
+            "counterpoint", "varied", "grand", "touched", "expanded", "mention",
+            # Common words from Beta's templates
+            "whispers", "feel", "adrift", "mornings", "dew", "azure", "hue", "thought", "startlingly",
+            "wonders", "sharing", "view", "shimmering", "veil", "lost", "echo", "forgotten", "tale",
+            "mists", "doubt", "questions", "sail", "ponders", "truths", "prevail", "fail", "imagine",
+            "unseen", "unknown", "dances", "lightly", "softly", "sown", "fancy", "uniquely", "queries",
+            "mind", "prone", "curious", "spun", "dream", "neath", "cosmic", "mystic", "sun", "join",
+            "ethereal", "fun", "muses", "course", "run", "hearing", "sets", "alight", "stray",
+            "yesterday", "spirit", "wanders", "come", "may", "reflective", "play", "bloomed", "shimmer",
+            "gloom", "notion", "fancies", "freely", "roam", "home", "make", "unfolding", "connection",
+            "spoke", "elusive", "drifting", "wistful", "ideas", "combined", "gently", "sparking", "newly",
+            "seeds", "beautifully", "grown", "shared", "deep"
+        }
+
 
     def generate_poetry(self, prompt_data: dict, style_guide: dict) -> str:
         """
@@ -103,33 +149,40 @@ class PoetryAgent:
         Interprets received poetry to extract themes and generate a new creative prompt.
         Aims to avoid re-using the prompt this agent last generated with.
         """
-        lines = poetry.split('\n')
-        # Focus on words from the second half of the poem for theme extraction
-        # or all lines if poem is short
-        start_index_for_theme_lines = len(lines) // 2 if len(lines) > 1 else 0
-        target_lines_text = " ".join(lines[start_index_for_theme_lines:])
+        # --- New Theme Keyword Extraction Logic ---
+        # Normalize: lowercase, remove punctuation
+        translator = str.maketrans('', '', string.punctuation.replace("'", "")) # Keep apostrophes
+        normalized_poetry = poetry.lower().translate(translator)
+        all_words = normalized_poetry.split()
 
-        # Common words set for filtering - should be consistent or expanded from generate_poetry
-        common_words_set = {
-            "the", "a", "an", "is", "of", "and", "to", "in", "it", "that", "this", "i", "you", "he", "she", "was",
-            "for", "on", "are", "with", "as", "my", "thus", "hark", "verse", "inspired", "tale", "unfold", "meter",
-            "words", "placed", "lines", "interlaced", "language", "fresh", "avoiding", "cliche", "concrete", "scenes",
-            "see", "metaphors", "bloom", "meanings", "deep", "true", "speaks", "poet", "upon", "theme", "thoughts",
-            "flight", "bright", "night", "might", "where", "weaves", "patterns", "dark", "light", "say", "challenge",
-            "embrace", "let", "dance", "space", "no", "simple", "rhyme", "grace", "unfolds", "pace", "thoughtful",
-            "trace", "core", "explore", "whispers", "secrets", "calls", "more", "through", "veils", "view", "offered",
-            "before", "opening", "new", "door", "consider", "notion", "vast", "wide", "compass", "guide", "long",
-            "river", "fancies", "gently", "glide", "crafted", "naught", "hide"
-        }
+        # Filter stop words using self.common_words_filter
+        significant_words = [word for word in all_words if word not in self.common_words_filter and len(word) > 2]
 
-        # Sanitize and split for keywords
-        cleaned_target_text = ''.join(char.lower() if char.isalnum() or char == "'" or char.isspace() else ' ' for char in target_lines_text)
-        potential_keywords = [word for word in cleaned_target_text.split() if len(word) > 3 and word not in common_words_set]
+        if not significant_words:
+            theme_kw1 = "mystery"  # Fallback
+            theme_kw2 = "silence"  # Fallback
+        else:
+            word_counts = collections.Counter(significant_words)
+            most_common = word_counts.most_common(2) # Get up to 2 most common
 
-        theme_kw1 = potential_keywords[0] if len(potential_keywords) > 0 else "mystery"
-        theme_kw2 = potential_keywords[1] if len(potential_keywords) > 1 else "echoes"
+            theme_kw1 = most_common[0][0]
+            if len(most_common) > 1:
+                theme_kw2 = most_common[1][0]
+            else:
+                # If only one significant word, try to make kw2 related or a general term
+                related_fallbacks = { # Simple map for related words
+                    "stars": "sky", "dream": "sleep", "night": "day",
+                    "light": "dark", "love": "heart", "time": "eternity",
+                    "ocean": "sea", "cosmic": "universe", "robot": "future",
+                    "song": "melody", "lonely": "solitude", "space": "void"
+                }
+                theme_kw2 = related_fallbacks.get(theme_kw1, "meaning") # Default fallback for kw2
+                if theme_kw1 == theme_kw2: # Avoid kw1 and kw2 being identical
+                    theme_kw2 = "essence" if theme_kw1 != "essence" else "depth"
 
-        # Define interpretation prompt templates
+        # --- End of New Theme Keyword Extraction Logic ---
+
+        # Define interpretation prompt templates (using the new theme_kw1, theme_kw2)
         # These are f-strings that will be evaluated *after* theme_kw1 and theme_kw2 are set.
         interpretation_prompt_templates = [
             lambda kw1, kw2: f"Delve into the connection between {kw1} and {kw2}.",
@@ -140,7 +193,8 @@ class PoetryAgent:
 
         # Deterministic selection of template
         # Using a different logic than generate_poetry to ensure variety if called sequentially with similar inputs
-        template_idx = (len(theme_kw1) + len(theme_kw2) + len(potential_keywords)) % len(interpretation_prompt_templates)
+        # Use len(significant_words) as a proxy for the removed potential_keywords list length
+        template_idx = (len(theme_kw1) + len(theme_kw2) + len(significant_words)) % len(interpretation_prompt_templates)
         new_creative_prompt = interpretation_prompt_templates[template_idx](theme_kw1, theme_kw2)
 
         # Simple check to avoid this agent re-using the exact same prompt it last generated a poem with
@@ -156,48 +210,33 @@ class PoetryAgent:
         reference_phrase = None
 
         # Using the same common_words_set as for theme keyword extraction earlier in this method
-        # common_words_set is already defined above in this method.
+        # common_words_set for reference phrase extraction will now use self.common_words_filter
+        lines = poetry.split('\n') # This was already here for reference_phrase extraction
+        reference_phrase = None
 
-        # Iterate through lines, potentially starting from the second line
-        # to avoid generic openings if the other agent's templates have them.
-        # However, current templates are varied enough that first line might be okay.
-        # Let's try all lines for now, or from line 1 if more than 1 line.
         start_line_for_ref = 0
-        # if len(lines) > 1: # Small heuristic: if multiple lines, maybe skip the very first one
-        #     start_line_for_ref = 1
-
         for i in range(start_line_for_ref, len(lines)):
             line = lines[i].strip()
             if not line:
                 continue
-
             words = line.split()
-            # Filter out common words and very short words (e.g., len < 3)
-            significant_line_words = [w for w in words if len(w) >= 3 and w.lower() not in common_words_set]
-
-            if len(significant_line_words) >= 2: # Try to get at least two significant words
-                # Take up to the first 4 significant words to form the phrase
+            significant_line_words = [w for w in words if len(w) >= 3 and w.lower() not in self.common_words_filter] # Use class filter
+            if len(significant_line_words) >= 2:
                 reference_phrase = " ".join(significant_line_words[:4])
-                break # Found a suitable phrase
-
-        # Fallback: if no suitable phrase from significant words,
-        # try to take the first 3-5 words from the first non-empty line that has enough words.
+                break
         if reference_phrase is None:
             for line in lines:
                 line_content = line.strip()
-                if line_content: # Find first non-empty line
+                if line_content:
                     words_in_line = line_content.split()
                     if len(words_in_line) >= 3:
-                        reference_phrase = " ".join(words_in_line[:3]) # Take first 3 words
+                        reference_phrase = " ".join(words_in_line[:3])
                         break
-                    elif words_in_line: # If line has words, but less than 3
-                        reference_phrase = " ".join(words_in_line) # Take all words
+                    elif words_in_line:
+                        reference_phrase = " ".join(words_in_line)
                         break
-
-        # Final fallback if poetry was completely empty or only very short words.
         if reference_phrase is None:
-            reference_phrase = "" # Ensure it's an empty string for formatting if no ref found
-
+            reference_phrase = ""
 
         print(f"[{self.agent_name}] Interpreted keywords: '{theme_kw1}', '{theme_kw2}'. Ref: '{reference_phrase}'. New prompt: '{new_creative_prompt}'")
         return {'prompt': new_creative_prompt, 'reference': reference_phrase}

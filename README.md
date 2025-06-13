@@ -17,6 +17,8 @@ This distinction is primarily achieved within the `PoetryAgent`'s `generate_poet
 
 A key feature enhancing the dialogue is the agents' ability to create direct conversational threads. When responding, an agent's `interpret_poetry` method extracts a salient short phrase from the received poem. This `reference_phrase` is then prominently woven into the responding agent's poem via its persona-specific templates in `generate_poetry` (passed as part of a data dictionary). This mechanism ensures that the agents explicitly acknowledge and build upon specific words of the previous speaker, resulting in a demonstrably more cohesive, engaging, and thematically linked exchange.
 
+Beyond direct phrase referencing, the agents now strive for deeper thematic coherence. The `interpret_poetry` method performs an analysis of the received poem to identify its most statistically significant thematic words (after filtering out common terms, using frequency analysis). These key thematic words then form the core of the new creative prompt generated for the responding agent. This ensures that each poem is not only referentially linked but also directly addresses and evolves the central themes introduced by the previous speaker, leading to a more focused and intelligently progressing dialogue.
+
 ## Directory Structure
 
 ```
