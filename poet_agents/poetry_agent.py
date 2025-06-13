@@ -5,38 +5,38 @@ from .style_guide import frederick_turner_style
 
 # Persona: Alpha - The Orator (Formal, Structured, Declarative)
 ALPHA_TEMPLATES = {
-    0: ("Hark, I shall articulate on '{prompt}', a matter of import,\n"
-        "Where {kw1} and {kw2} hold their court.\n"
-        "Observe the structure, meticulously wrought,\n"
-        "A reasoned discourse, by Alpha taught."),
+    0: ("Regarding your insightful '{reference_phrase}', I shall articulate on '{prompt}'.\n"
+        "Here, {kw1} and {kw2} hold significant court anew.\n"
+        "Observe this reasoned structure, meticulously wrought,\n"
+        "A further discourse, by Alpha taught."),
 
-    1: ("Let us consider '{prompt}', with clarity and precision,\n"
+    1: ("You touched on '{reference_phrase}'. Let us now consider '{prompt}', with clarity and precision,\n"
         "Its facets ({kw1}, {kw2}) shaped by logical decision.\n"
-        "No fleeting whim, but studied, keen vision,\n"
-        "Alpha presents this theme for your erudition."),
+        "This builds upon our shared, keen vision,\n"
+        "Alpha presents this expanded theme for your erudition."),
 
-    2: ("The subject '{prompt}' now commands the stage,\n"
-        "With {kw1} as a focus, and {kw2} to engage the sage.\n"
-        "Each line considered, turned upon the page,\n"
-        "So speaks Alpha, actor on history's stage.")
+    2: ("The subject '{prompt}', especially in light of your mention of '{reference_phrase}', now commands the stage,\n"
+        "With {kw1} as a critical focus, and {kw2} to engage the sage.\n"
+        "Each line a counterpoint, upon life's varied page,\n"
+        "So speaks Alpha, actor on history's grand stage.")
 }
 
 # Persona: Beta - The Dreamer (Lyrical, Questioning, Abstract)
 BETA_TEMPLATES = {
-    0: ("Whispers of '{prompt}', do you feel them too?\n"
-        "Like {kw1} adrift in morning's dew, or {kw2} of azure hue.\n"
-        "A fleeting thought, what if it's new?\n"
-        "Beta wonders, sharing this view with you."),
+    0: ("Your words, like '{reference_phrase}', make me ponder '{prompt}' in my mind's soft hue.\n"
+        "Are {kw1} and {kw2} part of this unfolding view?\n"
+        "A fleeting thought, perhaps startlingly new,\n"
+        "Beta wonders, sharing this connection now with you."),
 
-    1: ("What if '{prompt}' is but a shimmering veil?\n"
-        "And {kw1} a lost echo, {kw2} a forgotten tale.\n"
-        "Through mists of doubt, my questions sail,\n"
-        "Beta ponders, where truths prevail or fail."),
+    1: ("You spoke of '{reference_phrase}'. What if '{prompt}' is but a shimmering, elusive veil?\n"
+        "And {kw1} a lost echo drifting, {kw2} a half-forgotten, wistful tale.\n"
+        "Through mists of your ideas, my own questions set their sail,\n"
+        "Beta ponders, where our combined truths might prevail or gently fail."),
 
-    2: ("Imagine '{prompt}', a world unseen, unknown,\n"
-        "Where {kw1} dances lightly, and {kw2} is softly sown.\n"
-        "Is this a fancy, uniquely my own?\n"
-        "Beta queries, from a mind to wonder prone.")
+    2: ("You mentioned '{reference_phrase}', sparking thoughts. Imagine '{prompt}', a world unseen, unknown,\n"
+        "Where {kw1} dances ever so lightly, and {kw2} is softly, newly sown.\n"
+        "Is this a fancy, from your own seeds of thought now beautifully grown?\n"
+        "Beta queries, from a mind to shared, deep wonder prone.")
 }
 
 class PoetryAgent:
@@ -55,11 +55,17 @@ class PoetryAgent:
             self.templates = ALPHA_TEMPLATES
 
 
-    def generate_poetry(self, input_prompt: str, style_guide: dict) -> str:
+    def generate_poetry(self, prompt_data: dict, style_guide: dict) -> str:
         """
-        Generates a poem using different templates and keywords from the prompt.
+        Generates a poem using different templates and keywords from the prompt_data.
         Style_guide is not actively used in this stub but is kept for API consistency.
+        prompt_data is expected to be a dict: {'prompt': str, 'reference': str|None}
         """
+        actual_prompt = prompt_data['prompt']
+        reference_phrase = prompt_data.get('reference')
+        if reference_phrase is None:
+            reference_phrase = "" # Default to empty string for formatting
+
         common_filter_words = {
             "a", "an", "the", "is", "of", "on", "in", "to", "for", "with", "theme",
             "about", "response", "poetic", "and", "or", "but", "if", "then", "else",
@@ -69,13 +75,12 @@ class PoetryAgent:
             "concrete", "scenes", "see", "metaphors", "bloom", "meanings", "deep", "true", "speaks"
         } # Note: agent names 'alpha', 'beta' could be added here if they become too prominent as keywords
 
-        # Sanitize and split prompt for keywords
-        cleaned_prompt = ''.join(char.lower() if char.isalnum() or char == "'" or char.isspace() else ' ' for char in input_prompt)
-        prompt_words = [word for word in cleaned_prompt.split() if len(word) > 3 and word not in common_filter_words]
+        # Sanitize and split actual_prompt for keywords
+        cleaned_actual_prompt = ''.join(char.lower() if char.isalnum() or char == "'" or char.isspace() else ' ' for char in actual_prompt)
+        prompt_words = [word for word in cleaned_actual_prompt.split() if len(word) > 3 and word not in common_filter_words]
 
         kw1 = prompt_words[0] if len(prompt_words) > 0 else "stars"
         kw2 = prompt_words[1] if len(prompt_words) > 1 else "dreams"
-        # kw3 removed as new persona templates only use two keywords.
 
         # Select template from the agent's persona-specific set
         template_key = self.generation_counter % len(self.templates)
@@ -83,14 +88,14 @@ class PoetryAgent:
 
         # Format the chosen template string
         generated_poem = chosen_template_format_string.format(
-            prompt=input_prompt,
+            prompt=actual_prompt,
             kw1=kw1,
-            kw2=kw2
-            # self.agent_name is part of the template literal, not a format placeholder
+            kw2=kw2,
+            reference_phrase=reference_phrase
         )
 
         self.generation_counter += 1
-        self.last_prompt_generated_by_me = input_prompt # Store the prompt this agent used
+        self.last_prompt_generated_by_me = actual_prompt # Store the actual_prompt this agent used
         return generated_poem
 
     def interpret_poetry(self, poetry: str) -> str:
@@ -146,8 +151,39 @@ class PoetryAgent:
             if new_creative_prompt == self.last_prompt_generated_by_me: # Still same after trying next?
                  new_creative_prompt = f"{new_creative_prompt}, from a new perspective."
 
-        print(f"[{self.agent_name}] Interpreted keywords: '{theme_kw1}', '{theme_kw2}'. New creative prompt: '{new_creative_prompt}'")
-        return new_creative_prompt
+        # Extract reference_phrase from the input poetry
+        poetry_lines = poetry.split('\n')
+        reference_phrase = None
+
+        # Try to get a phrase from a line that is not the very first one if possible,
+        # and has some substance.
+        if len(poetry_lines) > 1:
+            # Prefer a middle line or later line
+            target_line_idx = len(poetry_lines) // 2
+            if target_line_idx == 0 and len(poetry_lines) > 1 : # if poem has 2 lines, target middle is line 1 (0-indexed)
+                 target_line_idx = 1 # Use the second line if first was boilerplate
+            elif target_line_idx == 0 and len(poetry_lines) == 1: # only one line
+                 target_line_idx = 0
+
+            if target_line_idx < len(poetry_lines):
+                middle_line_words = poetry_lines[target_line_idx].strip().split()
+                # Filter out very short words, but be less aggressive than theme keyword filtering
+                meaningful_words_for_ref = [w for w in middle_line_words if len(w) > 1]
+
+                if len(meaningful_words_for_ref) >= 2 : # Need at least two words for a short phrase
+                    reference_phrase = " ".join(meaningful_words_for_ref[:5]) # Take first few (up to 5) meaningful words
+                elif middle_line_words: # if no "meaningful" words by that rule, but line has words
+                    reference_phrase = " ".join(middle_line_words[:5])
+
+        # If still no reference phrase (e.g. very short poem or empty lines) try first line as last resort
+        if not reference_phrase and poetry_lines:
+            first_line_words = poetry_lines[0].strip().split()
+            if len(first_line_words) >= 2:
+                 reference_phrase = " ".join(first_line_words[:5])
+
+
+        print(f"[{self.agent_name}] Interpreted keywords: '{theme_kw1}', '{theme_kw2}'. Ref: '{reference_phrase}'. New prompt: '{new_creative_prompt}'")
+        return {'prompt': new_creative_prompt, 'reference': reference_phrase}
 
     def send_message(self, recipient_id: str, message_type: str, payload: str):
         """
@@ -209,34 +245,41 @@ if __name__ == '__main__':
     print(f"--- Testing {agent_tester.agent_name}'s Varied Poem Generation & Interpretation ---")
 
     # First generation by BardTest
-    prompt1 = "the song of a lonely robot in space"
-    print(f"\nInput Prompt 1: '{prompt1}'")
-    poem1 = agent_tester.generate_poetry(prompt1, style_to_use)
-    print(f"[{agent_tester.agent_name} generated Poem 1 (template {(agent_tester.generation_counter-1) % 4 + 1})]:\n{poem1}")
+    prompt_data1 = {'prompt': "the song of a lonely robot in space", 'reference': "a silent wish"} # Added a sample reference
+    print(f"\nInput Prompt Data 1: {prompt_data1}")
+    poem1 = agent_tester.generate_poetry(prompt_data1, style_to_use)
+    # The number of templates for Alpha (default for BardTest) is 3.
+    print(f"[{agent_tester.agent_name} generated Poem 1 (template {(agent_tester.generation_counter-1) % 3 + 1})]:\n{poem1}")
     print(f"BardTest's last_prompt_generated_by_me is now: '{agent_tester.last_prompt_generated_by_me}'")
 
 
     # BardTest interprets another poem (e.g., from another agent)
     incoming_poem = "The stars are cold and distant fires,\nA cosmic ocean of desires.\nEchoes of creation's birth."
     print(f"\n{agent_tester.agent_name} interpreting incoming poem:\n{incoming_poem}")
-    derived_prompt_for_next_poem = agent_tester.interpret_poetry(incoming_poem)
-    # The interpret_poetry method prints the new prompt.
+    interpretation_result = agent_tester.interpret_poetry(incoming_poem)
+    # Note: interpret_poetry already prints its findings.
+    # The following line is for __main__ to confirm what it received.
+    print(f"[{agent_tester.agent_name}] Received from interpretation - Prompt: '{interpretation_result['prompt']}', Reference: '{interpretation_result['reference']}'")
 
-    # BardTest generates its second poem using the derived prompt
-    print(f"\n{agent_tester.agent_name} generating Poem 2 using derived prompt: '{derived_prompt_for_next_poem}'")
-    poem2 = agent_tester.generate_poetry(derived_prompt_for_next_poem, style_to_use)
-    print(f"[{agent_tester.agent_name} generated Poem 2 (template {(agent_tester.generation_counter-1) % 4 + 1})]:\n{poem2}")
+
+    # BardTest generates its second poem using the derived prompt and reference
+    prompt_data2 = interpretation_result # Pass the whole dict
+    print(f"\n{agent_tester.agent_name} generating Poem 2 using prompt_data: {prompt_data2}")
+    poem2 = agent_tester.generate_poetry(prompt_data2, style_to_use)
+    print(f"[{agent_tester.agent_name} generated Poem 2 (template {(agent_tester.generation_counter-1) % 3 + 1})]:\n{poem2}")
     print(f"BardTest's last_prompt_generated_by_me is now: '{agent_tester.last_prompt_generated_by_me}'")
 
-    # Simulate interpreting another poem, potentially leading to a prompt similar to the one BardTest just used
+    # Simulate interpreting another poem
     incoming_poem_2 = "A journey to distant stars, a quest for the unknown desires of space."
     print(f"\n{agent_tester.agent_name} interpreting incoming poem 2:\n{incoming_poem_2}")
-    derived_prompt_for_next_poem_2 = agent_tester.interpret_poetry(incoming_poem_2)
+    interpretation_result_2 = agent_tester.interpret_poetry(incoming_poem_2)
+    print(f"[{agent_tester.agent_name}] Received from interpretation 2 - Prompt: '{interpretation_result_2['prompt']}', Reference: '{interpretation_result_2['reference']}'")
 
     # BardTest generates its third poem
-    print(f"\n{agent_tester.agent_name} generating Poem 3 using derived prompt: '{derived_prompt_for_next_poem_2}'")
-    poem3 = agent_tester.generate_poetry(derived_prompt_for_next_poem_2, style_to_use)
-    print(f"[{agent_tester.agent_name} generated Poem 3 (template {(agent_tester.generation_counter-1) % 4 + 1})]:\n{poem3}")
+    prompt_data3 = interpretation_result_2
+    print(f"\n{agent_tester.agent_name} generating Poem 3 using prompt_data: {prompt_data3}")
+    poem3 = agent_tester.generate_poetry(prompt_data3, style_to_use)
+    print(f"[{agent_tester.agent_name} generated Poem 3 (template {(agent_tester.generation_counter-1) % 3 + 1})]:\n{poem3}")
     print(f"BardTest's last_prompt_generated_by_me is now: '{agent_tester.last_prompt_generated_by_me}'")
 
     # Deleting message files that might have been created by previous test runs, if any.
