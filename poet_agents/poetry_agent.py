@@ -5,38 +5,38 @@ from .style_guide import frederick_turner_style
 
 # Persona: Alpha - The Orator (Formal, Structured, Declarative)
 ALPHA_TEMPLATES = {
-    0: ("Regarding your insightful '{reference_phrase}', I shall articulate on '{prompt}'.\n"
-        "Here, {kw1} and {kw2} hold significant court anew.\n"
-        "Observe this reasoned structure, meticulously wrought,\n"
-        "A further discourse, by Alpha taught."),
+    0: ("Your point on '{reference_phrase}' is noted; I now turn to '{prompt}'.\n"
+        "Let {kw1} and {kw2} bring forth its core, from slumbering thought unkempt.\n"
+        "A structured argument, from fallacy exempt,\n"
+        "Thus Alpha speaks, a new perspective to attempt."),
 
-    1: ("You touched on '{reference_phrase}'. Let us now consider '{prompt}', with clarity and precision,\n"
-        "Its facets ({kw1}, {kw2}) shaped by logical decision.\n"
-        "This builds upon our shared, keen vision,\n"
-        "Alpha presents this expanded theme for your erudition."),
+    1: ("Considering '{reference_phrase}', my discourse on '{prompt}' shall proceed.\n"
+        "With {kw1} as foundation, and {kw2} the vital seed.\n"
+        "Observe the logic, a carefully planted creed,\n"
+        "Alpha elaborates, fulfilling reason's need."),
 
-    2: ("The subject '{prompt}', especially in light of your mention of '{reference_phrase}', now commands the stage,\n"
-        "With {kw1} as a critical focus, and {kw2} to engage the sage.\n"
-        "Each line a counterpoint, upon life's varied page,\n"
-        "So speaks Alpha, actor on history's grand stage.")
+    2: ("Indeed, '{reference_phrase}' leads well to my reflections on '{prompt}'.\n"
+        "Herein, {kw1} and {kw2} from their confines are promptly unblocked.\n" # Changed from 'unkempt' to avoid repetition
+        "A cogent thesis, precisely interlocked,\n"
+        "Alpha concludes, ensuring all minds are unlocked.")
 }
 
 # Persona: Beta - The Dreamer (Lyrical, Questioning, Abstract)
 BETA_TEMPLATES = {
-    0: ("Your words, like '{reference_phrase}', make me ponder '{prompt}' in my mind's soft hue.\n"
-        "Are {kw1} and {kw2} part of this unfolding view?\n"
-        "A fleeting thought, perhaps startlingly new,\n"
-        "Beta wonders, sharing this connection now with you."),
+    0: ("'{reference_phrase}'... such curious words you've spun!\n"
+        "They make me dream of '{prompt}', neath a cosmic, mystic sun.\n"
+        "Do {kw1} and {kw2} join in this ethereal fun?\n"
+        "Beta muses, till the course of wonder's run."),
 
-    1: ("You spoke of '{reference_phrase}'. What if '{prompt}' is but a shimmering, elusive veil?\n"
-        "And {kw1} a lost echo drifting, {kw2} a half-forgotten, wistful tale.\n"
-        "Through mists of your ideas, my own questions set their sail,\n"
-        "Beta ponders, where our combined truths might prevail or gently fail."),
+    1: ("Hearing '{reference_phrase}' sets my thoughts alight, towards '{prompt}' they stray.\n"
+        "What if {kw1} is but a dream, and {kw2} the light of yesterday?\n"
+        "My spirit wanders, come what may,\n"
+        "Beta questions, in this soft, reflective play."),
 
-    2: ("You mentioned '{reference_phrase}', sparking thoughts. Imagine '{prompt}', a world unseen, unknown,\n"
-        "Where {kw1} dances ever so lightly, and {kw2} is softly, newly sown.\n"
-        "Is this a fancy, from your own seeds of thought now beautifully grown?\n"
-        "Beta queries, from a mind to shared, deep wonder prone.")
+    2: ("When you mentioned '{reference_phrase}', a new idea of '{prompt}' started to bloom!\n"
+        "Could {kw1} be the shimmer, and {kw2} escape the gloom?\n"
+        "Across this notion, my fancies freely roam,\n"
+        "Beta whispers, finding wonder's home.")
 }
 
 class PoetryAgent:
@@ -152,34 +152,51 @@ class PoetryAgent:
                  new_creative_prompt = f"{new_creative_prompt}, from a new perspective."
 
         # Extract reference_phrase from the input poetry
-        poetry_lines = poetry.split('\n')
+        lines = poetry.split('\n')
         reference_phrase = None
 
-        # Try to get a phrase from a line that is not the very first one if possible,
-        # and has some substance.
-        if len(poetry_lines) > 1:
-            # Prefer a middle line or later line
-            target_line_idx = len(poetry_lines) // 2
-            if target_line_idx == 0 and len(poetry_lines) > 1 : # if poem has 2 lines, target middle is line 1 (0-indexed)
-                 target_line_idx = 1 # Use the second line if first was boilerplate
-            elif target_line_idx == 0 and len(poetry_lines) == 1: # only one line
-                 target_line_idx = 0
+        # Using the same common_words_set as for theme keyword extraction earlier in this method
+        # common_words_set is already defined above in this method.
 
-            if target_line_idx < len(poetry_lines):
-                middle_line_words = poetry_lines[target_line_idx].strip().split()
-                # Filter out very short words, but be less aggressive than theme keyword filtering
-                meaningful_words_for_ref = [w for w in middle_line_words if len(w) > 1]
+        # Iterate through lines, potentially starting from the second line
+        # to avoid generic openings if the other agent's templates have them.
+        # However, current templates are varied enough that first line might be okay.
+        # Let's try all lines for now, or from line 1 if more than 1 line.
+        start_line_for_ref = 0
+        # if len(lines) > 1: # Small heuristic: if multiple lines, maybe skip the very first one
+        #     start_line_for_ref = 1
 
-                if len(meaningful_words_for_ref) >= 2 : # Need at least two words for a short phrase
-                    reference_phrase = " ".join(meaningful_words_for_ref[:5]) # Take first few (up to 5) meaningful words
-                elif middle_line_words: # if no "meaningful" words by that rule, but line has words
-                    reference_phrase = " ".join(middle_line_words[:5])
+        for i in range(start_line_for_ref, len(lines)):
+            line = lines[i].strip()
+            if not line:
+                continue
 
-        # If still no reference phrase (e.g. very short poem or empty lines) try first line as last resort
-        if not reference_phrase and poetry_lines:
-            first_line_words = poetry_lines[0].strip().split()
-            if len(first_line_words) >= 2:
-                 reference_phrase = " ".join(first_line_words[:5])
+            words = line.split()
+            # Filter out common words and very short words (e.g., len < 3)
+            significant_line_words = [w for w in words if len(w) >= 3 and w.lower() not in common_words_set]
+
+            if len(significant_line_words) >= 2: # Try to get at least two significant words
+                # Take up to the first 4 significant words to form the phrase
+                reference_phrase = " ".join(significant_line_words[:4])
+                break # Found a suitable phrase
+
+        # Fallback: if no suitable phrase from significant words,
+        # try to take the first 3-5 words from the first non-empty line that has enough words.
+        if reference_phrase is None:
+            for line in lines:
+                line_content = line.strip()
+                if line_content: # Find first non-empty line
+                    words_in_line = line_content.split()
+                    if len(words_in_line) >= 3:
+                        reference_phrase = " ".join(words_in_line[:3]) # Take first 3 words
+                        break
+                    elif words_in_line: # If line has words, but less than 3
+                        reference_phrase = " ".join(words_in_line) # Take all words
+                        break
+
+        # Final fallback if poetry was completely empty or only very short words.
+        if reference_phrase is None:
+            reference_phrase = "" # Ensure it's an empty string for formatting if no ref found
 
 
         print(f"[{self.agent_name}] Interpreted keywords: '{theme_kw1}', '{theme_kw2}'. Ref: '{reference_phrase}'. New prompt: '{new_creative_prompt}'")
