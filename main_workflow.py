@@ -2,6 +2,14 @@ import time # To add slight delays for readability if needed, and for unique fil
 from poet_agents.poetry_agent import PoetryAgent
 from poet_agents.style_guide import frederick_turner_style
 
+def print_formatted_poem(agent_name: str, poem_text: str, title: str = "Generated Poem"):
+    """Helper function to print poems with a standard format."""
+    print(f"\n--- {agent_name}'s {title} ---")
+    # print(f"{agent_name.upper()}:") # Alternative simpler header
+    for line in poem_text.split('\n'):
+        print(f"  {line}")
+    print("-----------------------------------")
+
 def run_workflow():
     print("Initializing Agents...")
     agent_alpha = PoetryAgent(agent_name="alpha")
@@ -27,15 +35,13 @@ def run_workflow():
     # 1. Agent Alpha's First Turn
     print("\n--- Agent Alpha's First Turn ---")
     initial_prompt = "the dawn of creativity"
-    print(f"Alpha's initial prompt: '{initial_prompt}'")
+    print(f"\n--- Agent Alpha's First Turn ---")
+    print(f"Alpha's initial prompt for first poem: '{initial_prompt}'")
 
     alpha_poem = agent_alpha.generate_poetry(initial_prompt, frederick_turner_style)
-    print("\nAlpha generated poetry:")
-    print("-------------------------")
-    print(alpha_poem)
-    print("-------------------------")
+    print_formatted_poem(agent_alpha.agent_name, alpha_poem, "First Poem (to Beta)")
 
-    print(f"\nAlpha sending poem to Beta ({agent_beta.agent_name})...")
+    print(f"\nAlpha ({agent_alpha.agent_name}) sending its first poem to Beta ({agent_beta.agent_name})...")
     agent_alpha.send_message(recipient_id=agent_beta.agent_name, message_type="initial_poem", payload=alpha_poem)
 
     # Adding a small delay to simulate message transfer and allow file system to catch up if necessary
@@ -60,18 +66,16 @@ def run_workflow():
             # interpret_poetry now directly returns a creative prompt.
             # The method itself prints the derived theme and the new prompt.
             creative_prompt_for_beta = agent_beta.interpret_poetry(beta_received_message['payload'])
+            # The interpret_poetry method already prints: "[beta] Interpreted theme: '...'. New creative prompt: '...'"
 
-            print(f"\nBeta ({agent_beta.agent_name}) generating response poetry based on derived prompt: '{creative_prompt_for_beta}'...")
+            print(f"\nBeta ({agent_beta.agent_name}) generating its first response poem based on derived prompt: '{creative_prompt_for_beta}'...")
             beta_response_poem = agent_beta.generate_poetry(
                 input_prompt=creative_prompt_for_beta, # Use the dynamic prompt from interpret_poetry
                 style_guide=frederick_turner_style
             )
-            print(f"\nBeta's response poem (to Alpha):")
-            print("-------------------------------")
-            print(beta_response_poem)
-            print("-------------------------------")
+            print_formatted_poem(agent_beta.agent_name, beta_response_poem, "First Response Poem (to Alpha)")
 
-            print(f"\nBeta ({agent_beta.agent_name}) sending response poem to Alpha ({agent_alpha.agent_name})...")
+            print(f"\nBeta ({agent_beta.agent_name}) sending its first response poem to Alpha ({agent_alpha.agent_name})...")
             agent_beta.send_message(recipient_id=agent_alpha.agent_name, message_type="response_poem", payload=beta_response_poem)
         else:
             print(f"Beta received unexpected message type: {beta_received_message['message_type']}")
@@ -101,13 +105,54 @@ def run_workflow():
             # The method itself prints the derived theme and the new prompt.
             creative_prompt_for_alpha_next_turn = agent_alpha.interpret_poetry(alpha_received_message['payload'])
 
-            print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for a potential next turn: '{creative_prompt_for_alpha_next_turn}'")
-            print("Alpha's workflow currently ends here, but this prompt could start another cycle if the workflow was extended.")
-            print("-------------------------------------------------------------------------------------------------")
+            print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for its second poem: '{creative_prompt_for_alpha_next_turn}'")
+
+            print(f"\nAlpha ({agent_alpha.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_alpha_next_turn}'...")
+            alpha_second_poem = agent_alpha.generate_poetry(
+                input_prompt=creative_prompt_for_alpha_next_turn,
+                style_guide=frederick_turner_style
+            )
+            print_formatted_poem(agent_alpha.agent_name, alpha_second_poem, "Second Poem (to Beta)")
+
+            print(f"\nAlpha ({agent_alpha.agent_name}) sending its second poem to Beta ({agent_beta.agent_name})...")
+            agent_alpha.send_message(recipient_id=agent_beta.agent_name, message_type="second_poem", payload=alpha_second_poem)
+
+            # Adding a small delay
+            time.sleep(0.1)
+
+            # 4. Agent Beta's Second Response Turn
+            print("\n--- Agent Beta's Second Response Turn ---")
+            print(f"Beta ({agent_beta.agent_name}) attempting to receive Alpha's second poem...")
+            beta_received_second_message = agent_beta.receive_message()
+
+            if beta_received_second_message:
+                print("\nBeta received Alpha's second poem:")
+                print("------------------------------------")
+                print(f"From: {beta_received_second_message['sender_id']}")
+                print(f"Type: {beta_received_second_message['message_type']}")
+                print("Payload (Second Poem from Alpha):")
+                print(beta_received_second_message['payload'])
+                print("------------------------------------")
+
+                if beta_received_second_message['message_type'] == "second_poem":
+                    print(f"\nBeta ({agent_beta.agent_name}) interpreting Alpha's second poem to derive a new prompt...")
+                    creative_prompt_for_beta_second_turn = agent_beta.interpret_poetry(beta_received_second_message['payload'])
+
+                    print(f"\nBeta ({agent_beta.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_beta_second_turn}'...")
+                    beta_second_poem = agent_beta.generate_poetry(
+                        input_prompt=creative_prompt_for_beta_second_turn,
+                        style_guide=frederick_turner_style
+                    )
+                    print_formatted_poem(agent_beta.agent_name, beta_second_poem, "Second Response Poem (Final)")
+                    # Workflow ends with Beta's second poem generation for now.
+                else:
+                    print(f"Beta received unexpected message type: {beta_received_second_message['message_type']}")
+            else:
+                print(f"Beta ({agent_beta.agent_name}) received no second message from Alpha.")
         else:
             print(f"Alpha received unexpected message type: {alpha_received_message['message_type']}")
     else:
-        print("Alpha received no message.")
+        print(f"Alpha ({agent_alpha.agent_name}) received no response message from Beta.")
 
     print("\n--- [END WORKFLOW] ---")
 

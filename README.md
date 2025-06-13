@@ -51,10 +51,12 @@ The primary goal of this foundational codebase is to establish the core componen
 - This script orchestrates a simple interaction between two `PoetryAgent` instances (e.g., "alpha" and "beta").
 - **Workflow:**
     1. Agent Alpha generates and "sends" an initial poem to Agent Beta.
-    2. Agent Beta "receives" the poem, "interprets" it (deriving a new creative prompt), generates a response poem based on this new prompt, and "sends" it back.
-    3. Agent Alpha "receives" and "interprets" the response (deriving another new creative prompt for a potential next turn).
-- It uses `print()` statements to show the progression of the interaction and the content of the messages.
-- It demonstrates how an agent, after receiving and interpreting a poem, uses the dynamically generated creative prompt from `interpret_poetry` to craft its own poetic response, ensuring a more varied exchange.
+    2. Agent Beta "receives" this poem, "interprets" it (deriving a new creative prompt), generates a response poem based on this new prompt, and "sends" it back to Alpha.
+    3. Agent Alpha "receives" Beta's response, "interprets" it (deriving another new creative prompt), generates its second poem, and "sends" it to Beta.
+    4. Agent Beta "receives" Alpha's second poem, "interprets" it, and generates its second response poem.
+- The script simulates a **two-round poetic exchange**.
+- It uses `print()` statements to show the progression of the interaction, including message details and derived prompts.
+- It demonstrates how agents use dynamically generated creative prompts from `interpret_poetry` to craft their responses, fostering a more varied exchange.
 
 ## How to Run
 
@@ -65,8 +67,10 @@ The primary goal of this foundational codebase is to establish the core componen
     python main_workflow.py
     ```
 4.  Observe the console output. It will show:
-    - Poems being generated and interpreted by each agent.
-    - Notifications of messages being "sent" and "received".
+    - The full two-round poetic exchange (four poems in total).
+    - Each poem clearly attributed to its generating agent (e.g., "--- alpha's First Poem (to Beta) ---") and with indented lines.
+    - Notifications of messages being "sent" and "received" (as JSON files).
+    - The derived creative prompts that guide each agent's response.
     - The creation and deletion of temporary JSON files (e.g., `message_to_alpha.json`, `message_to_beta.json`) in the root directory, which represent the messages.
 
 ## Current Status & Future Work
