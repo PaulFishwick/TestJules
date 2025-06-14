@@ -138,7 +138,7 @@ def run_workflow():
     # 1. Agent Alpha's First Turn
     print("\n--- Agent Alpha's First Turn ---")
     alpha_initial_prompt_text = random.choice(ALPHA_INITIAL_PROMPTS_LIST) # Select random initial prompt
-    # alpha_initial_prompt_text = "themes of cosmic wonder and stellar destiny" # Hardcoded for this test
+    # alpha_initial_prompt_text = "themes of cosmic wonder and stellar destiny" # Ensure this is commented out or deleted
     print(f"Alpha's initial prompt for first poem: '{alpha_initial_prompt_text}'")
 
     # Alpha's first poem has no prior reference.
