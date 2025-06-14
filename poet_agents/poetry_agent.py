@@ -3,8 +3,38 @@ import datetime
 import os # For file operations like delete and check existence
 import collections # For Counter
 import string # For punctuation removal
+import subprocess # Already imported for ReportLab, but ensure it's here for Pronouncing
+import sys # Already imported for ReportLab, but ensure it's here for Pronouncing
+import random # For rhyme mode selection
 
 from .style_guide import frederick_turner_style
+
+# --- Pronouncing Library Import with Installation Attempt ---
+PRONOUNCING_AVAILABLE = False
+try:
+    import pronouncing
+    PRONOUNCING_AVAILABLE = True
+    print("Pronouncing library imported successfully.")
+except ImportError:
+    print("Pronouncing library not found. Attempting to install...")
+    try:
+        # Ensure sys and subprocess are imported earlier in the file
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "pronouncing"])
+        print("Pronouncing library installation attempted. Re-importing...")
+        # Attempt to import again after installation
+        # This re-import might sometimes not work perfectly in the same run
+        # if Python's import caches are not fully refreshed for the current process.
+        # A common pattern is to ask the user to re-run the script.
+        # However, for this automated environment, we'll try a direct re-import.
+        import site
+        from importlib import reload
+        reload(site) # Try to refresh sys.path
+        import pronouncing
+        PRONOUNCING_AVAILABLE = True
+        print("Pronouncing library imported successfully after installation attempt.")
+    except Exception as e:
+        print(f"Could not install or import Pronouncing library after attempt: {e}. Dynamic rhyming will be disabled.")
+        # pronouncing = None # Ensure pronouncing is None if it failed, so calls to it would error clearly if not guarded by PRONOUNCING_AVAILABLE
 
 # Persona: Alpha - The Orator (Formal, Structured, Declarative)
 ALPHA_TEMPLATES = {
@@ -133,16 +163,185 @@ class PoetryAgent:
         template_key = self.generation_counter % len(self.templates)
         chosen_template_format_string = self.templates[template_key]
 
-        # Format the chosen template string
-        generated_poem = chosen_template_format_string.format(
-            prompt=actual_prompt,
-            kw1=kw1,
-            kw2=kw2,
-            reference_phrase=reference_phrase
-        )
+        # Format the chosen template string - This original formatting is now part of PersonaFreeVerse path
 
-        self.generation_counter += 1
-        self.last_prompt_generated_by_me = actual_prompt # Store the actual_prompt this agent used
+        self.last_prompt_generated_by_me = actual_prompt # Store the actual_prompt this agent is working with
+
+        # --- Rhyme Scheme Selection ---
+        possible_rhyme_modes = ["AAAA", "AABB", "PersonaFreeVerse"]
+        original_chosen_rhyme_mode = "PersonaFreeVerse" # Default
+
+        if PRONOUNCING_AVAILABLE: # Global flag defined at module level
+            original_chosen_rhyme_mode = random.choice(possible_rhyme_modes)
+
+        current_rhyme_mode = original_chosen_rhyme_mode
+        print(f"[{self.agent_name}] Chosen rhyme mode: {current_rhyme_mode}")
+
+        generated_poem = None # Initialize
+
+        # --- AAAA Rhyme Scheme Logic ---
+        if current_rhyme_mode == "AAAA" and PRONOUNCING_AVAILABLE:
+            print(f"[{self.agent_name}] Attempting AAAA rhyme scheme for prompt: '{actual_prompt}' (Keywords: {kw1}, {kw2}; Ref: '{reference_phrase}')")
+            _poem_lines_internal = []
+            selected_rhyme_anchor = None
+            rhyme_list_for_A = []
+
+            if self.agent_name.lower() == 'alpha': # Orator
+                generic_line_starts_AAAA = [
+                    f"Concerning '{actual_prompt}', with {kw1} clear and bold,",
+                    f"The truth of {kw2}, a story to be told,",
+                    f"Let wisdom's pattern gracefully unfold,",
+                    f"A narrative of value, more precious than gold,"
+                ]
+            else: # Beta - Dreamer (or default)
+                generic_line_starts_AAAA = [
+                    f"With '{actual_prompt}' in mind, and {kw1} like a feather fine,",
+                    f"And {kw2} appearing, a most curious sign,",
+                    f"My thoughts take wing, on currents so divine,",
+                    f"Exploring wonders, where new ideas entwine,"
+                ]
+            random.shuffle(generic_line_starts_AAAA)
+
+            # Use self.common_words_filter for anchor candidates
+            anchor_candidates = [kw1, kw2] + [w for w in actual_prompt.split() if len(w) > 3 and w.lower() not in self.common_words_filter]
+            if not anchor_candidates: anchor_candidates.append("time")
+            random.shuffle(anchor_candidates)
+
+            for candidate in anchor_candidates:
+                if candidate and isinstance(candidate, str) and candidate.isalpha(): # Ensure candidate is a single word for rhyming
+                    rhymes = pronouncing.rhymes(candidate)
+                    if rhymes:
+                        selected_rhyme_anchor = candidate
+                        rhyme_list_for_A = list(set(r for r in rhymes if r != selected_rhyme_anchor)) # Unique rhymes, not the anchor itself
+                        if rhyme_list_for_A : # Need at least one other rhyming word
+                           print(f"[{self.agent_name}] AAAA: Using '{selected_rhyme_anchor}' as rhyme anchor. Found {len(rhyme_list_for_A)} other unique rhymes (showing up to 3): {rhyme_list_for_A[:3]}")
+                           break
+                        else: # Anchor has rhymes, but they might be itself or too few unique ones.
+                           selected_rhyme_anchor = None # Reset if not enough other rhymes
+                           rhyme_list_for_A = []
+
+            if not selected_rhyme_anchor or not rhyme_list_for_A :
+                print(f"[{self.agent_name}] AAAA: Could not find usable rhymes for selected anchors. Falling back to PersonaFreeVerse.")
+                current_rhyme_mode = "PersonaFreeVerse"
+            else:
+                # Line 1: Ends with selected_rhyme_anchor
+                # Prefer reference_phrase if it's substantial enough and different from the main prompt
+                line1_intro = ""
+                if reference_phrase and len(reference_phrase) < 40 and reference_phrase.lower() not in actual_prompt.lower() :
+                    line1_intro = f"You mentioned '{reference_phrase}', so"
+                else:
+                    line1_intro = generic_line_starts_AAAA[0]
+                _poem_lines_internal.append(f"{line1_intro} its end must sound like {selected_rhyme_anchor}.")
+
+                for i in range(1, 4):
+                    if rhyme_list_for_A:
+                        chosen_rhyming_word = random.choice(rhyme_list_for_A)
+                        if len(rhyme_list_for_A) > 1:
+                            try: rhyme_list_for_A.remove(chosen_rhyming_word)
+                            except ValueError: pass
+                        _poem_lines_internal.append(f"{generic_line_starts_AAAA[i % len(generic_line_starts_AAAA)]}, it too rhymes with {chosen_rhyming_word}.")
+                    else: # Should not happen if rhyme_list_for_A was validated initially
+                        _poem_lines_internal.append(f"{generic_line_starts_AAAA[i % len(generic_line_starts_AAAA)]}, like the first, it's {selected_rhyme_anchor}.")
+                generated_poem = "\n".join(_poem_lines_internal)
+
+        # --- AABB Rhyme Scheme Logic (Placeholder) ---
+        if current_rhyme_mode == "AABB" and PRONOUNCING_AVAILABLE: # Use current_rhyme_mode
+            print(f"[{self.agent_name}] Attempting AABB rhyme scheme for prompt: '{actual_prompt}' (Keywords: {kw1}, {kw2}; Ref: '{reference_phrase}')")
+            _poem_lines_internal = []
+            selected_rhyme_anchor_A = None
+            rhyme_list_for_A = []
+            selected_rhyme_anchor_B = None
+            rhyme_list_for_B = []
+
+            if self.agent_name.lower() == 'alpha': # Orator
+                generic_line_starts_AABB = [
+                    f"Regarding '{reference_phrase}', my thoughts on '{actual_prompt}' commence,",
+                    f"With {kw1} providing clear evidence,",
+                    f"Then, concerning {kw2}, I will dispense,",
+                    f"My reasoned views, to build our conference."
+                ]
+            else: # Beta - Dreamer (or default)
+                generic_line_starts_AABB = [
+                    f"You spoke of '{reference_phrase}', now '{actual_prompt}' fills my gaze,",
+                    f"And {kw1} flickers through a dreamy haze,",
+                    f"Then {kw2} appears, in myriad ways,",
+                    f"Through mystic paths, in wonder's maze."
+                ]
+            random.shuffle(generic_line_starts_AABB)
+
+            anchor_candidates_A = [kw1] + [w for w in actual_prompt.split() if len(w) > 3 and w.lower() not in self.common_words_filter and w.isalpha()]
+            if not anchor_candidates_A: anchor_candidates_A.append("day")
+            random.shuffle(anchor_candidates_A)
+
+            for candidate in anchor_candidates_A:
+                if candidate and isinstance(candidate, str):
+                    rhymes = pronouncing.rhymes(candidate)
+                    if rhymes:
+                        selected_rhyme_anchor_A = candidate
+                        rhyme_list_for_A = list(set(r for r in rhymes if r != selected_rhyme_anchor_A))
+                        if rhyme_list_for_A:
+                            print(f"[{self.agent_name}] AABB (A): Using '{selected_rhyme_anchor_A}' as rhyme anchor. Found {len(rhyme_list_for_A)} other unique rhymes: {rhyme_list_for_A[:3]}")
+                            break
+                        else:
+                            selected_rhyme_anchor_A = None # Reset
+
+            if not selected_rhyme_anchor_A:
+                print(f"[{self.agent_name}] AABB: Could not find usable rhymes for A. Falling back to PersonaFreeVerse.")
+                current_rhyme_mode = "PersonaFreeVerse"
+            else:
+                # Find rhymes for 'B'
+                anchor_candidates_B = [kw2] + [w for w in actual_prompt.split() if len(w) > 3 and w.lower() not in self.common_words_filter and w.isalpha() and w != selected_rhyme_anchor_A]
+                if not anchor_candidates_B: anchor_candidates_B.append("night")
+                random.shuffle(anchor_candidates_B)
+
+                for candidate in anchor_candidates_B:
+                    if candidate and isinstance(candidate, str):
+                        rhymes = pronouncing.rhymes(candidate)
+                        if rhymes: # Check if rhymes for B are somewhat different from A's anchor/rhymes
+                            temp_rhyme_list_B = list(set(r for r in rhymes if r != selected_rhyme_anchor_B and r != selected_rhyme_anchor_A))
+                            # Heuristic: if candidate B is not A's anchor, and its rhyme list has low overlap with A's rhymes
+                            is_anchor_B_different = candidate != selected_rhyme_anchor_A
+                            # Check if rhyme lists are substantially different or if B has enough distinct rhymes
+                            has_distinct_rhymes = len(set(temp_rhyme_list_B) - set(rhyme_list_for_A)) > 0 or len(temp_rhyme_list_B) > 1
+
+                            if temp_rhyme_list_B and (is_anchor_B_different or has_distinct_rhymes):
+                                selected_rhyme_anchor_B = candidate
+                                rhyme_list_for_B = temp_rhyme_list_B
+                                print(f"[{self.agent_name}] AABB (B): Using '{selected_rhyme_anchor_B}' as rhyme anchor. Found {len(rhyme_list_for_B)} unique rhymes: {rhyme_list_for_B[:3]}")
+                                break
+                            else: # try to ensure B anchor is not same as A if possible
+                                selected_rhyme_anchor_B = None
+
+                if not selected_rhyme_anchor_B or not rhyme_list_for_B: # Check if B rhymes were successfully found
+                    print(f"[{self.agent_name}] AABB: Could not find usable distinct rhymes for B. Falling back to PersonaFreeVerse.")
+                    current_rhyme_mode = "PersonaFreeVerse"
+                else:
+                    _poem_lines_internal.append(f"{generic_line_starts_AABB[0]} its end like {selected_rhyme_anchor_A}.")
+                    chosen_rhyme_A = random.choice(rhyme_list_for_A) if rhyme_list_for_A else selected_rhyme_anchor_A
+                    _poem_lines_internal.append(f"{generic_line_starts_AABB[1]} matching with {chosen_rhyme_A}.")
+                    _poem_lines_internal.append(f"{generic_line_starts_AABB[2]} now sounding like {selected_rhyme_anchor_B}.")
+                    chosen_rhyme_B = random.choice(rhyme_list_for_B) if rhyme_list_for_B else selected_rhyme_anchor_B
+                    _poem_lines_internal.append(f"{generic_line_starts_AABB[3]} rhyming with {chosen_rhyme_B}.")
+                    generated_poem = "\n".join(_poem_lines_internal)
+
+        # --- PersonaFreeVerse or Fallback Logic ---
+        if current_rhyme_mode == "PersonaFreeVerse":
+            if original_chosen_rhyme_mode != "PersonaFreeVerse" and generated_poem is None : # It's a fallback
+                 print(f"[{self.agent_name}] Rhyming mode '{original_chosen_rhyme_mode}' failed or not available, now using PersonaFreeVerse for prompt: '{actual_prompt}'.")
+            elif generated_poem is None : # Chosen initially or PRONOUNCING_AVAILABLE was false
+                 print(f"[{self.agent_name}] Using PersonaFreeVerse mode for prompt: '{actual_prompt}'.")
+
+            if generated_poem is None: # Ensure poem is generated if it wasn't by AAAA success
+                template_key = self.generation_counter % len(self.templates)
+                chosen_template_format_string = self.templates[template_key]
+                generated_poem = chosen_template_format_string.format(prompt=actual_prompt, kw1=kw1, kw2=kw2, reference_phrase=reference_phrase)
+                self.generation_counter += 1 # Increment counter only when PersonaFreeVerse templates are used
+
+        # Safety net if no poem was generated by any path (should not happen)
+        if generated_poem is None:
+            print(f"[{self.agent_name}] Critical Error: No poem generation path successfully taken. Defaulting to simple statement.")
+            generated_poem = f"In response to '{reference_phrase}', I consider '{actual_prompt}' with {kw1} and {kw2}."
+
         return generated_poem
 
     def interpret_poetry(self, poetry: str) -> str:

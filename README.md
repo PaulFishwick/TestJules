@@ -97,6 +97,17 @@ This PDF includes:
 
 This feature uses the [ReportLab](https://www.reportlab.com/opensource/) Python library for PDF generation. If ReportLab is not found in your Python environment, the script will attempt to install it automatically.
 
+### Experimental Dynamic Rhyming
+
+As an advanced feature, the agents will now sometimes attempt to dynamically generate poems adhering to specific rhyme schemes:
+
+-   **AAAA:** Four lines where all end words rhyme.
+-   **AABB:** Two consecutive rhyming couplets.
+
+This capability is powered by the `pronouncing` Python library (which the script attempts to auto-install if not present) to find rhyming words. For each poem, the agent randomly decides whether to attempt a rhyming scheme or use its standard persona-based free verse generation ("PersonaFreeVerse" mode).
+
+**Note:** Dynamic rhyme generation within a stubbed system is complex. While the end-word rhymes produced by AAAA/AABB modes are generally correct according to the `pronouncing` library, the overall poetic quality, naturalness of phrasing, and thematic coherence in these rhymed poems may vary and can sometimes sound more forced than the free verse outputs. If suitable rhymes cannot be found for a chosen scheme, the agent will fall back to its PersonaFreeVerse mode. This feature is considered experimental.
+
 ## Current Status & Future Work
 
 - **Simulated Components:**
