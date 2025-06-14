@@ -1,6 +1,7 @@
 import time # To add slight delays for readability if needed, and for unique filenames if agents run too fast.
 import subprocess
 import sys
+import random
 
 # --- ReportLab Imports with Installation Attempt ---
 REPORTLAB_AVAILABLE = False
@@ -54,6 +55,14 @@ def print_formatted_poem(agent_name: str, poem_text: str, title: str = "Generate
     for line in poem_text.split('\n'):
         print(f"  {line}")
     print("-----------------------------------")
+
+ALPHA_INITIAL_PROMPTS_LIST = [
+    "themes of cosmic wonder and stellar destiny",
+    "the silent wisdom of ancient mountains and hidden valleys",
+    "a quest for the ephemeral city of echoes and lost dreams",
+    "the rhythmic dance of ocean tides under a cryptic moon",
+    "secrets whispered by the winds on a desolate plain"
+]
 
 def create_conversation_pdf(title_prompt: str, conversation_data: list, filename: str):
     if not REPORTLAB_AVAILABLE:
@@ -128,10 +137,15 @@ def run_workflow():
 
     # 1. Agent Alpha's First Turn
     print("\n--- Agent Alpha's First Turn ---")
-    alpha_initial_prompt = "themes of cosmic wonder" # Store initial prompt
-    print(f"Alpha's initial prompt for first poem: '{alpha_initial_prompt}'")
+    alpha_initial_prompt_text = random.choice(ALPHA_INITIAL_PROMPTS_LIST) # Select random initial prompt
+    # alpha_initial_prompt_text = "themes of cosmic wonder and stellar destiny" # Ensure this is commented out or deleted
+    print(f"Alpha's initial prompt for first poem: '{alpha_initial_prompt_text}'")
 
-    alpha_poem_1 = agent_alpha.generate_poetry(alpha_initial_prompt, frederick_turner_style)
+    # Alpha's first poem has no prior reference.
+    alpha_poem_1 = agent_alpha.generate_poetry(
+        prompt_data={'prompt': alpha_initial_prompt_text, 'reference': None},
+        style_guide=frederick_turner_style
+    )
     conversation_log.append({'agent': agent_alpha.agent_name, 'poem': alpha_poem_1})
     print_formatted_poem(agent_alpha.agent_name, alpha_poem_1, "First Poem (to Beta)")
 
@@ -158,13 +172,13 @@ def run_workflow():
         if beta_received_message['message_type'] == "initial_poem":
             print(f"\nBeta ({agent_beta.agent_name}) interpreting Alpha's poem to derive a new prompt...")
             # interpret_poetry now directly returns a creative prompt.
-            # The method itself prints the derived theme and the new prompt.
-            creative_prompt_for_beta = agent_beta.interpret_poetry(beta_received_message['payload'])
-            # The interpret_poetry method already prints: "[beta] Interpreted theme: '...'. New creative prompt: '...'"
+            # The method itself prints the derived theme, reference, and the new prompt.
+            interpretation_data_for_beta = agent_beta.interpret_poetry(beta_received_message['payload'])
+            # Example of what interpret_poetry prints: "[beta] Interpreted keywords: 'kw1', 'kw2'. Ref: 'ref phrase'. New prompt: 'new creative prompt'"
 
-            print(f"\nBeta ({agent_beta.agent_name}) generating its first response poem based on derived prompt: '{creative_prompt_for_beta}'...")
+            print(f"\nBeta ({agent_beta.agent_name}) generating its first response poem based on interpretation (Prompt: '{interpretation_data_for_beta['prompt']}', Ref: '{interpretation_data_for_beta['reference']}')...")
             beta_response_poem_1 = agent_beta.generate_poetry(
-                input_prompt=creative_prompt_for_beta, # Use the dynamic prompt from interpret_poetry
+                prompt_data=interpretation_data_for_beta, # Pass the whole dictionary
                 style_guide=frederick_turner_style
             )
             conversation_log.append({'agent': agent_beta.agent_name, 'poem': beta_response_poem_1})
@@ -197,14 +211,12 @@ def run_workflow():
         if alpha_received_message['message_type'] == "response_poem":
             print(f"\nAlpha ({agent_alpha.agent_name}) interpreting Beta's response poem to derive a new prompt...")
             # interpret_poetry now directly returns a creative prompt.
-            # The method itself prints the derived theme and the new prompt.
-            creative_prompt_for_alpha_next_turn = agent_alpha.interpret_poetry(alpha_received_message['payload'])
-            # The above call to interpret_poetry now prints the derived prompt, so the next line is redundant.
-            # print(f"\nAlpha ({agent_alpha.agent_name}) has derived a new prompt for its second poem: '{creative_prompt_for_alpha_next_turn}'")
+            # The method itself prints the derived theme, reference, and the new prompt.
+            interpretation_data_for_alpha = agent_alpha.interpret_poetry(alpha_received_message['payload'])
 
-            print(f"\nAlpha ({agent_alpha.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_alpha_next_turn}'...")
+            print(f"\nAlpha ({agent_alpha.agent_name}) generating its second poem based on interpretation (Prompt: '{interpretation_data_for_alpha['prompt']}', Ref: '{interpretation_data_for_alpha['reference']}')...")
             alpha_poem_2 = agent_alpha.generate_poetry(
-                input_prompt=creative_prompt_for_alpha_next_turn,
+                prompt_data=interpretation_data_for_alpha, # Pass the whole dictionary
                 style_guide=frederick_turner_style
             )
             conversation_log.append({'agent': agent_alpha.agent_name, 'poem': alpha_poem_2})
@@ -232,11 +244,11 @@ def run_workflow():
 
                 if beta_received_second_message['message_type'] == "second_poem":
                     print(f"\nBeta ({agent_beta.agent_name}) interpreting Alpha's second poem to derive a new prompt...")
-                    creative_prompt_for_beta_second_turn = agent_beta.interpret_poetry(beta_received_second_message['payload'])
+                    interpretation_data_for_beta_2 = agent_beta.interpret_poetry(beta_received_second_message['payload'])
 
-                    print(f"\nBeta ({agent_beta.agent_name}) generating its second poem based on prompt: '{creative_prompt_for_beta_second_turn}'...")
+                    print(f"\nBeta ({agent_beta.agent_name}) generating its second poem based on interpretation (Prompt: '{interpretation_data_for_beta_2['prompt']}', Ref: '{interpretation_data_for_beta_2['reference']}')...")
                     beta_poem_2 = agent_beta.generate_poetry(
-                        input_prompt=creative_prompt_for_beta_second_turn,
+                        prompt_data=interpretation_data_for_beta_2, # Pass the whole dictionary
                         style_guide=frederick_turner_style
                     )
                     conversation_log.append({'agent': agent_beta.agent_name, 'poem': beta_poem_2})
@@ -254,11 +266,12 @@ def run_workflow():
     print("\n--- [END WORKFLOW] ---")
 
     # Generate the PDF with the conversation
-    if conversation_log and 'alpha_initial_prompt' in locals() and alpha_initial_prompt:
+    # Note: 'alpha_initial_prompt' was renamed to 'alpha_initial_prompt_text' for clarity,
+    # as it's just the text string used for the PDF title and Alpha's first actual prompt.
+    if conversation_log and 'alpha_initial_prompt_text' in locals() and alpha_initial_prompt_text:
         output_pdf_filename = "poetic_exchange.pdf"
-        # The title_prompt for create_conversation_pdf should be the actual initial prompt string.
         create_conversation_pdf(
-            title_prompt=alpha_initial_prompt, # This was defined at the start of Alpha's turn
+            title_prompt=alpha_initial_prompt_text,
             conversation_data=conversation_log,
             filename=output_pdf_filename
         )
