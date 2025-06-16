@@ -56,6 +56,8 @@ def print_formatted_poem(agent_name: str, poem_text: str, title: str = "Generate
         print(f"  {line}")
     print("-----------------------------------")
 
+# This list is used by run_workflow, so it should be at module level or passed in.
+# For now, keeping it at module level as it was.
 ALPHA_INITIAL_PROMPTS_LIST = [
     "themes of cosmic wonder and stellar destiny",
     "the silent wisdom of ancient mountains and hidden valleys",
@@ -120,6 +122,41 @@ def run_workflow():
     print(f"Agent Alpha: {agent_alpha.agent_name}")
     print(f"Agent Beta: {agent_beta.agent_name}")
 
+    print("\n--- Session Configuration ---")
+
+    FORM_RULES = {
+        "haiku": {"name": "Haiku (3 lines, 5-7-5 syllables)", "line_count": 3, "syllables": [5, 7, 5], "rhyme_scheme": None, "meter_description": "Syllabic 5-7-5"},
+        "limerick": {"name": "Limerick (5 lines, AABBA rhyme)", "line_count": 5, "syllables": [8,8,5,5,8], "rhyme_scheme": "AABBA", "meter_description": "Anapestic (meter/syllables TBD)"}
+    }
+    # POSSIBLE_FORM_NAMES is not strictly needed if validating against FORM_RULES.keys() directly
+
+    # Temporarily hardcode for this test run
+    form_input = "haiku"
+    dialogue_rounds = 2
+    # print(f"DEBUG: Hardcoded form_input = '{form_input}', dialogue_rounds = {dialogue_rounds}") # Keep this commented
+    form_input = input(f"Enter the Poetic Form for this session (e.g., {', '.join(FORM_RULES.keys())}): ").strip().lower()
+
+    dialogue_length_input = input("Enter Dialogue Length (number of poems per agent, e.g., 1 or 2): ").strip()
+    try:
+        dialogue_rounds = int(dialogue_length_input)
+        if dialogue_rounds <= 0:
+            print("Dialogue length must be positive. Defaulting to 1 round.")
+            dialogue_rounds = 1
+    except ValueError:
+        print("Invalid dialogue length. Defaulting to 1 round.")
+        dialogue_rounds = 1
+
+    if form_input in FORM_RULES:
+        current_session_rules = FORM_RULES[form_input]
+    else:
+        print(f"Form '{form_input}' not recognized or not yet fully supported. Defaulting to Haiku for this session.")
+        current_session_rules = FORM_RULES["haiku"] # Default to Haiku
+
+    print(f"Session Poetic Form: {current_session_rules['name']}")
+    print(f"Session Dialogue Rounds per agent: {dialogue_rounds}")
+    print("---------------------------")
+    # This current_session_rules dictionary will be passed to generate_poetry
+
     # Clean up any previous message files to ensure a clean run
     # This is important because agent names are fixed in this script
     try:
@@ -143,8 +180,8 @@ def run_workflow():
 
     # Alpha's first poem has no prior reference.
     alpha_poem_1 = agent_alpha.generate_poetry(
-        prompt_data={'prompt': alpha_initial_prompt_text, 'reference': None},
-        style_guide=frederick_turner_style
+        prompt_data_or_text={'prompt': alpha_initial_prompt_text, 'reference': None}, # Changed keyword
+        session_form_rules=current_session_rules
     )
     conversation_log.append({'agent': agent_alpha.agent_name, 'poem': alpha_poem_1})
     print_formatted_poem(agent_alpha.agent_name, alpha_poem_1, "First Poem (to Beta)")
@@ -178,8 +215,8 @@ def run_workflow():
 
             print(f"\nBeta ({agent_beta.agent_name}) generating its first response poem based on interpretation (Prompt: '{interpretation_data_for_beta['prompt']}', Ref: '{interpretation_data_for_beta['reference']}')...")
             beta_response_poem_1 = agent_beta.generate_poetry(
-                prompt_data=interpretation_data_for_beta, # Pass the whole dictionary
-                style_guide=frederick_turner_style
+                prompt_data_or_text=interpretation_data_for_beta, # Changed keyword
+                session_form_rules=current_session_rules
             )
             conversation_log.append({'agent': agent_beta.agent_name, 'poem': beta_response_poem_1})
             print_formatted_poem(agent_beta.agent_name, beta_response_poem_1, "First Response Poem (to Alpha)")
@@ -216,8 +253,8 @@ def run_workflow():
 
             print(f"\nAlpha ({agent_alpha.agent_name}) generating its second poem based on interpretation (Prompt: '{interpretation_data_for_alpha['prompt']}', Ref: '{interpretation_data_for_alpha['reference']}')...")
             alpha_poem_2 = agent_alpha.generate_poetry(
-                prompt_data=interpretation_data_for_alpha, # Pass the whole dictionary
-                style_guide=frederick_turner_style
+                prompt_data_or_text=interpretation_data_for_alpha, # Changed keyword
+                session_form_rules=current_session_rules
             )
             conversation_log.append({'agent': agent_alpha.agent_name, 'poem': alpha_poem_2})
             print_formatted_poem(agent_alpha.agent_name, alpha_poem_2, "Second Poem (to Beta)")
@@ -248,8 +285,8 @@ def run_workflow():
 
                     print(f"\nBeta ({agent_beta.agent_name}) generating its second poem based on interpretation (Prompt: '{interpretation_data_for_beta_2['prompt']}', Ref: '{interpretation_data_for_beta_2['reference']}')...")
                     beta_poem_2 = agent_beta.generate_poetry(
-                        prompt_data=interpretation_data_for_beta_2, # Pass the whole dictionary
-                        style_guide=frederick_turner_style
+                        prompt_data_or_text=interpretation_data_for_beta_2, # Changed keyword
+                        session_form_rules=current_session_rules
                     )
                     conversation_log.append({'agent': agent_beta.agent_name, 'poem': beta_poem_2})
                     print_formatted_poem(agent_beta.agent_name, beta_poem_2, "Second Response Poem (Final)")
