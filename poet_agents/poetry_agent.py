@@ -1,15 +1,15 @@
 import json
 import datetime
-import os # For file operations like delete and check existence
-import collections # For Counter
-import string # For punctuation removal
-import subprocess # Already imported for ReportLab, but ensure it's here for Pronouncing
-import sys # Already imported for ReportLab, but ensure it's here for Pronouncing
-import random # For rhyme mode selection
+import os
+import collections
+import string
+import subprocess
+import sys
+import random
+from typing import Union, Dict
 
 from .style_guide import frederick_turner_style
 
-# --- Pronouncing Library Import with Installation Attempt ---
 PRONOUNCING_AVAILABLE = False
 try:
     import pronouncing
@@ -18,409 +18,254 @@ try:
 except ImportError:
     print("Pronouncing library not found. Attempting to install...")
     try:
-        # Ensure sys and subprocess are imported earlier in the file
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pronouncing"])
         print("Pronouncing library installation attempted. Re-importing...")
-        # Attempt to import again after installation
-        # This re-import might sometimes not work perfectly in the same run
-        # if Python's import caches are not fully refreshed for the current process.
-        # A common pattern is to ask the user to re-run the script.
-        # However, for this automated environment, we'll try a direct re-import.
         import site
         from importlib import reload
-        reload(site) # Try to refresh sys.path
+        reload(site)
         import pronouncing
         PRONOUNCING_AVAILABLE = True
         print("Pronouncing library imported successfully after installation attempt.")
     except Exception as e:
-        print(f"Could not install or import Pronouncing library after attempt: {e}. Dynamic rhyming will be disabled.")
-        # pronouncing = None # Ensure pronouncing is None if it failed, so calls to it would error clearly if not guarded by PRONOUNCING_AVAILABLE
-
-# Persona: Alpha - The Orator (Formal, Structured, Declarative)
-ALPHA_TEMPLATES = {
-    0: ("Your point on '{reference_phrase}' is noted; I now turn to '{prompt}'.\n"
-        "Let {kw1} and {kw2} bring forth its core, from slumbering thought unkempt.\n"
-        "A structured argument, from fallacy exempt,\n"
-        "Thus Alpha speaks, a new perspective to attempt."),
-
-    1: ("Considering '{reference_phrase}', my discourse on '{prompt}' shall proceed.\n"
-        "With {kw1} as foundation, and {kw2} the vital seed.\n"
-        "Observe the logic, a carefully planted creed,\n"
-        "Alpha elaborates, fulfilling reason's need."),
-
-    2: ("Indeed, '{reference_phrase}' leads well to my reflections on '{prompt}'.\n"
-        "Herein, {kw1} and {kw2} from their confines are promptly unblocked.\n" # Changed from 'unkempt' to avoid repetition
-        "A cogent thesis, precisely interlocked,\n"
-        "Alpha concludes, ensuring all minds are unlocked.")
-}
-
-# Persona: Beta - The Dreamer (Lyrical, Questioning, Abstract)
-BETA_TEMPLATES = {
-    0: ("'{reference_phrase}'... such curious words you've spun!\n"
-        "They make me dream of '{prompt}', neath a cosmic, mystic sun.\n"
-        "Do {kw1} and {kw2} join in this ethereal fun?\n"
-        "Beta muses, till the course of wonder's run."),
-
-    1: ("Hearing '{reference_phrase}' sets my thoughts alight, towards '{prompt}' they stray.\n"
-        "What if {kw1} is but a dream, and {kw2} the light of yesterday?\n"
-        "My spirit wanders, come what may,\n"
-        "Beta questions, in this soft, reflective play."),
-
-    2: ("When you mentioned '{reference_phrase}', a new idea of '{prompt}' started to bloom!\n"
-        "Could {kw1} be the shimmer, and {kw2} escape the gloom?\n"
-        "Across this notion, my fancies freely roam,\n"
-        "Beta whispers, finding wonder's home.")
-}
+        print(f"Could not install or import Pronouncing library after attempt: {e}. Dynamic rhyming/syllable counting will be disabled.")
 
 class PoetryAgent:
     def __init__(self, agent_name: str):
         self.agent_name = agent_name
         self.generation_counter = 0
-        self.last_prompt_generated_by_me = None # For tracking prompt used by this agent for its own generation
-
-        if self.agent_name.lower() == 'alpha':
-            self.templates = ALPHA_TEMPLATES
-        elif self.agent_name.lower() == 'beta':
-            self.templates = BETA_TEMPLATES
-        else:
-            # Default or fallback if agent name is neither alpha nor beta
-            print(f"Warning: Agent name '{self.agent_name}' not recognized for specific persona templates. Using Alpha's templates as default.")
-            self.templates = ALPHA_TEMPLATES
+        self.last_prompt_generated_by_me = None
+        self.templates = {}
 
         self.common_words_filter = {
-            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
-            "have", "has", "had", "do", "does", "did", "will", "would", "should", "can",
-            "could", "may", "might", "must", "and", "but", "or", "nor", "for", "so", "yet",
-            "if", "then", "else", "when", "where", "why", "how", "what", "which", "who",
-            "whom", "whose", "of", "at", "by", "from", "to", "in", "out", "on", "off",
-            "over", "under", "again", "further", "once", "here", "there", "all",
-            "any", "both", "each", "few", "more", "most", "other", "some", "such", "no",
-            "not", "only", "own", "same", "than", "too", "very", "s", "t",
-            "just", "don", "shouldve", "now", "d", "ll", "m", "re", "ve", "y",
-            "ain", "aren", "couldn", "didn", "doesn", "hadn", "hasn", "haven", "isn",
-            "ma", "mightn", "mustn", "needn", "shan", "shouldn", "wasn", "weren",
-            "won", "wouldn", "i", "me", "my", "myself", "we", "our", "ours", "ourselves",
-            "you", "your", "yours", "yourself", "yourselves", "he", "him", "his", "himself",
-            "she", "her", "hers", "herself", "it", "its", "itself", "they", "them", "their",
-            "theirs", "themselves",
-            "prompt", "kw1", "kw2", "reference_phrase", # From template placeholders
-            "alpha", "beta", # Agent names
-            # Common words from Alpha's templates (review if all are still in current templates)
-            "hark", "articulate", "matter", "import", "hold", "court", "observe", "structure", "meticulously",
-            "wrought", "reasoned", "discourse", "taught", "consider", "clarity", "precision", "facets",
-            "logical", "decision", "fleeting", "whim", "studied", "keen", "vision", "presents", "theme",
-            "erudition", "subject", "commands", "stage", "focus", "engage", "sage", "line", "considered",
-            "turned", "page", "speaks", "actor", "historys", "point", "noted", "turn", "bring", "forth",
-            "core", "slumbering", "thought", "unkempt", "argument", "fallacy", "exempt", "perspective",
-            "attempt", "proceed", "foundation", "vital", "seed", "logic", "carefully", "planted",
-            "creed", "elaborates", "fulfilling", "reasons", "need", "indeed", "leads", "well", "reflections",
-            "herein", "confines", "promptly", "unblocked", "cogent", "thesis", "precisely", "interlocked",
-            "concludes", "ensuring", "minds", "unlocked", "regarding", "insightful", "anew", "critical",
-            "counterpoint", "varied", "grand", "touched", "expanded", "mention",
-            # Common words from Beta's templates (review if all are still in current templates)
-            "whispers", "feel", "adrift", "mornings", "dew", "azure", "hue", # "thought" is already common, "startlingly" too specific
-            "wonders", "sharing", "view", "shimmering", "veil", "echo", "forgotten", "tale", # "lost" removed
-            "mists", "doubt", "questions", "sail", "ponders", "truths", "prevail", "fail", "imagine",
-            "unseen", "unknown", "dances", "lightly", "softly", "sown", "fancy", "uniquely", "queries",
-            "mind", "prone", "curious", "spun", "dream", "neath", "mystic", "sun", "join", # "cosmic" removed
-            "ethereal", "fun", "muses", "course", "run", "hearing", "sets", "alight", "stray",
-            "yesterday", "spirit", "wanders", "come", "may", "reflective", "play", "bloomed", "shimmer",
-            "gloom", "notion", "fancies", "freely", "roam", "home", "make", "unfolding", "connection",
-            "spoke", "elusive", "drifting", "wistful", "ideas", "combined", "gently", "sparking", "newly",
-            "seeds", "beautifully", "grown", "shared", "deep"
-            # "secrets" was removed by not being in the list above
+            "a", "an", "the", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
+            "do", "does", "did", "will", "would", "should", "can", "could", "may", "might", "must",
+            "and", "but", "or", "nor", "for", "so", "yet", "if", "then", "else", "when", "where",
+            "why", "how", "what", "which", "who", "whom", "whose", "of", "at", "by", "from", "to",
+            "in", "out", "on", "off", "over", "under", "again", "further", "once", "here", "there",
+            "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no",
+            "not", "only", "own", "same", "than", "too", "very", "s", "t", "just", "don",
+            "shouldve", "now", "d", "ll", "m", "o", "re", "ve", "y", "ain", "aren", "couldn",
+            "didn", "doesn", "hadn", "hasn", "haven", "isn", "ma", "mightn", "mustn", "needn",
+            "shan", "shouldn", "wasn", "weren", "won", "wouldn", "i", "me", "my", "myself",
+            "we", "our", "ours", "ourselves", "you", "your", "yours", "yourself", "yourselves",
+            "he", "him", "his", "himself", "she", "her", "hers", "herself", "it", "its", "itself",
+            "they", "them", "their", "theirs", "themselves", "prompt", "kw1", "kw2",
+            "reference_phrase", "alpha", "beta","noted", "turn", "core", "argument", "attempt",
+            "proceed", "foundation", "seed", "logic", "creed", "elaborates", "need", "leads",
+            "reflections", "confines", "unblocked", "thesis", "interlocked", "concludes", "unlock",
+            "spun", "dream", "sun", "fun", "muses", "run", "alight", "stray", "yesterday", "spirit",
+            "wanders", "play", "bloomed", "shimmer", "gloom", "fancies", "roam", "home"
         }
 
+    def _count_syllables_for_word(self, word: str) -> int:
+        if not word: return 0
+        if not PRONOUNCING_AVAILABLE:
+            num_vowels = sum(1 for char_in_word in word.lower() if char_in_word in "aeiou")
+            syl_count = max(1, num_vowels) if num_vowels > 0 else (1 if len(word) > 0 else 0)
+            print(f"    [Syllable Fallback - No Pronouncing] Word '{word}': Approx syllables: {syl_count}")
+            return syl_count
+        try:
+            word_lower = word.lower()
+            cleaned_word = word_lower.strip(string.punctuation)
+            if not cleaned_word: return 0
 
-    def generate_poetry(self, prompt_data: dict, style_guide: dict) -> str:
-        """
-        Generates a poem using different templates and keywords from the prompt_data.
-        Style_guide is not actively used in this stub but is kept for API consistency.
-        prompt_data is expected to be a dict: {'prompt': str, 'reference': str|None}
-        """
-        actual_prompt = prompt_data['prompt']
-        reference_phrase = prompt_data.get('reference')
-        if reference_phrase is None:
-            reference_phrase = "" # Default to empty string for formatting
+            counts = pronouncing.syllable_count(cleaned_word)
+            if counts > 0:
+                # print(f"    [Syllable CMUdict] Word '{cleaned_word}': Syllables: {counts}")
+                return counts
 
-        common_filter_words = {
-            "a", "an", "the", "is", "of", "on", "in", "to", "for", "with", "theme",
-            "about", "response", "poetic", "and", "or", "but", "if", "then", "else",
-            "i", "you", "me", "he", "she", "it", "we", "they", "my", "your", "his", "her", "its", "our", "their",
-            "what", "when", "where", "why", "how", "thus", "hark", "tale", "verse", "inspired", "unfold",
-            "meter", "words", "placed", "lines", "interlaced", "language", "fresh", "avoiding", "cliche",
-            "concrete", "scenes", "see", "metaphors", "bloom", "meanings", "deep", "true", "speaks"
-        } # Note: agent names 'alpha', 'beta' could be added here if they become too prominent as keywords
+            print(f"    [Syllable Fallback] Word '{cleaned_word}' not in CMUdict. Using vowel group count.")
+            num_vowels = 0
+            last_char_was_vowel = False
+            for char_val in cleaned_word:
+                is_vowel = char_val in "aeiouy"
+                if is_vowel and not last_char_was_vowel: num_vowels += 1
+                last_char_was_vowel = is_vowel
 
-        # Sanitize and split actual_prompt for keywords
+            if len(cleaned_word) > 2 and cleaned_word.endswith("e") and not cleaned_word.endswith("le") and num_vowels > 1:
+                if cleaned_word[-2] not in "aeiouy":
+                     if not (cleaned_word.endswith("es") and len(cleaned_word) > 3 and cleaned_word[-3] not in "aeiouy"):
+                        if not (cleaned_word.endswith("le") and len(cleaned_word) > 2 and cleaned_word[-3] not in "aeiouy"):
+                            num_vowels -=1
+
+            final_syl_count = max(1, num_vowels) if cleaned_word else 0
+            print(f"    [Syllable Fallback] Approx syllables for '{cleaned_word}': {final_syl_count}")
+            return final_syl_count
+        except Exception as e:
+            print(f"    [Syllable Error] Error counting syllables for '{word}': {e}. Defaulting to 1.")
+            return 1
+
+    def _count_syllables_in_line(self, line_words: list) -> int:
+        if not line_words: return 0
+        total_syllables = 0
+        for word in line_words:
+            syl = self._count_syllables_for_word(word)
+            total_syllables += syl
+        print(f"    [Line Syllable Count] For line: '{' '.join(line_words)}', CALC SYL: {total_syllables}")
+        return total_syllables
+
+    def _generate_haiku_line(self, theme_prompt: str, kw1: str, kw2: str, target_syl: int, line_number: int) -> str:
+        if not PRONOUNCING_AVAILABLE:
+            return "(Syllable counting unavailable)"
+
+        line_attempts = 0
+        max_attempts = 30
+
+        alpha_1syl_words = ["wise", "deep", "clear", "true", "strong", "form", "thus", "one", "all", "past", "vast", "still", "mark", "fact"]
+        alpha_2syl_words = ["reason", "logic", "future", "structure", "order", "wisdom", "pattern", "essence", "concept"]
+        beta_1syl_words = ["soft", "light", "hush", "mist", "far", "dim", "soul", "dream", "now", "deep", "calm", "sky", "moon", "star"]
+        beta_2syl_words = ["hidden", "secret", "spirit", "wonder", "magic", "echo", "flowing", "drifting", "fading"]
+
+        persona_1syl = alpha_1syl_words if self.agent_name.lower() == 'alpha' else beta_1syl_words
+        persona_2syl = alpha_2syl_words if self.agent_name.lower() == 'alpha' else beta_2syl_words
+        # persona_3syl not used in this simplified adjustment logic but kept for potential future
+
+        safe_kw1 = kw1 if kw1 else "theme"
+        safe_kw2 = kw2 if kw2 else "idea"
+
+        patterns = []
+        if self.agent_name.lower() == 'alpha':
+            patterns = [[safe_kw1, random.choice(persona_1syl), safe_kw2], [random.choice(persona_2syl), safe_kw1], [safe_kw1, "is", safe_kw2]]
+        else: # Beta
+            patterns = [[random.choice(persona_1syl), safe_kw1, safe_kw2], [safe_kw1, "like", random.choice(beta_2syl_words)], ["Ah,", safe_kw1]]
+
+        current_line_words = [str(w) for w in random.choice(patterns) if w is not None and str(w).strip()]
+        if not current_line_words: current_line_words = [safe_kw1]
+
+        best_attempt_words = list(current_line_words)
+        best_attempt_syllables = self._count_syllables_in_line(best_attempt_words)
+
+        while line_attempts < max_attempts:
+            line_attempts += 1
+            current_line_words = [str(w) for w in current_line_words if w and str(w).strip()]
+            if not current_line_words: current_line_words = [random.choice(persona_1syl)] if persona_1syl else [safe_kw1]
+
+            current_syllables = self._count_syllables_in_line(current_line_words)
+
+            print(f"    Haiku Line Gen Attempt {line_attempts}: '{' '.join(current_line_words)}' - Calculated Syllables: {current_syllables} (Target: {target_syl})")
+
+            if current_syllables == target_syl:
+                final_line_str = " ".join(current_line_words)
+                if self.agent_name.lower() == 'alpha': final_line_str = final_line_str.capitalize() + "."
+                else: final_line_str = final_line_str.capitalize() + random.choice(["...", ".", "!"])
+                print(f"[{self.agent_name}] Line {line_number} ({target_syl} syl): SUCCEEDED. Line: '{final_line_str}' (Syllables: {current_syllables})")
+                return final_line_str
+
+            if abs(current_syllables - target_syl) < abs(best_attempt_syllables - target_syl):
+                best_attempt_words = list(current_line_words); best_attempt_syllables = current_syllables
+            elif abs(current_syllables - target_syl) == abs(best_attempt_syllables - target_syl) and current_syllables > best_attempt_syllables :
+                best_attempt_words = list(current_line_words); best_attempt_syllables = current_syllables
+
+            diff = target_syl - current_syllables
+            if diff > 0:
+                word_to_add = None
+                if diff >= 2 and persona_2syl: word_to_add = random.choice(persona_2syl)
+                elif persona_1syl: word_to_add = random.choice(persona_1syl)
+                if word_to_add: current_line_words.append(word_to_add)
+                else: current_line_words.append(random.choice(["on", "is"]))
+            elif diff < 0:
+                if len(current_line_words) > 1:
+                    if current_line_words[-1] not in [safe_kw1, safe_kw2] or len(current_line_words) > 2 : current_line_words.pop()
+                    else: current_line_words.pop(0)
+                elif len(current_line_words) == 1: current_line_words = [random.choice(persona_1syl)] if persona_1syl else ["go"]
+
+        final_line_str = " ".join(best_attempt_words)
+        final_syllables = best_attempt_syllables
+        if final_syllables != target_syl : # Recalculate if loop ended by max_attempts
+             final_syllables = self._count_syllables_in_line(best_attempt_words)
+
+        print(f"[{self.agent_name}] Line {line_number} ({target_syl} syl): FAILED. Best attempt: '{final_line_str}' (Syllables: {final_syllables})")
+        return f"({final_line_str} - {target_syl} syl target not met; got {final_syllables})"
+
+    def generate_poetry(self, prompt_data_or_text: Union[str, Dict], session_form_rules: dict) -> str:
+        if isinstance(prompt_data_or_text, dict):
+            actual_prompt = prompt_data_or_text.get('prompt', "a silent pond")
+        else:
+            actual_prompt = prompt_data_or_text
+
+        self.last_prompt_generated_by_me = actual_prompt
+
         cleaned_actual_prompt = ''.join(char.lower() if char.isalnum() or char == "'" or char.isspace() else ' ' for char in actual_prompt)
-        prompt_words = [word for word in cleaned_actual_prompt.split() if len(word) > 3 and word not in common_filter_words]
+        prompt_words = [word for word in cleaned_actual_prompt.split() if len(word) > 3 and word not in self.common_words_filter]
+        kw1 = prompt_words[0] if len(prompt_words) > 0 else "frog"
+        kw2 = prompt_words[1] if len(prompt_words) > 1 else "water"
 
-        kw1 = prompt_words[0] if len(prompt_words) > 0 else "stars"
-        kw2 = prompt_words[1] if len(prompt_words) > 1 else "dreams"
+        form_name = session_form_rules.get('name', "Unknown Form")
+        target_line_count = session_form_rules.get('line_count', 3)
+        target_syllables_list = session_form_rules.get('syllables', [5, 7, 5])
 
-        # Select template from the agent's persona-specific set
-        template_key = self.generation_counter % len(self.templates)
-        chosen_template_format_string = self.templates[template_key]
+        print(f"[{self.agent_name}] Generating for form: '{form_name}'. Target lines: {target_line_count}, Syllables: {target_syllables_list} for prompt: '{actual_prompt}'")
 
-        # Format the chosen template string - This original formatting is now part of PersonaFreeVerse path
-
-        self.last_prompt_generated_by_me = actual_prompt # Store the actual_prompt this agent is working with
-
-        # --- Rhyme Scheme Selection ---
-        possible_rhyme_modes = ["AAAA", "AABB", "PersonaFreeVerse"]
-        original_chosen_rhyme_mode = "PersonaFreeVerse" # Default
-
-        if PRONOUNCING_AVAILABLE: # Global flag defined at module level
-            original_chosen_rhyme_mode = random.choice(possible_rhyme_modes)
-
-        current_rhyme_mode = original_chosen_rhyme_mode
-        print(f"[{self.agent_name}] Chosen rhyme mode: {current_rhyme_mode}")
-
-        generated_poem = None # Initialize
-
-        # --- AAAA Rhyme Scheme Logic ---
-        if current_rhyme_mode == "AAAA" and PRONOUNCING_AVAILABLE:
-            print(f"[{self.agent_name}] Attempting AAAA rhyme scheme for prompt: '{actual_prompt}' (Keywords: {kw1}, {kw2}; Ref: '{reference_phrase}')")
-            _poem_lines_internal = []
-            selected_rhyme_anchor = None
-            rhyme_list_for_A = []
-
-            if self.agent_name.lower() == 'alpha': # Orator
-                generic_line_starts_AAAA = [
-                    f"Concerning '{actual_prompt}', with {kw1} clear and bold,",
-                    f"The truth of {kw2}, a story to be told,",
-                    f"Let wisdom's pattern gracefully unfold,",
-                    f"A narrative of value, more precious than gold,"
-                ]
-            else: # Beta - Dreamer (or default)
-                generic_line_starts_AAAA = [
-                    f"With '{actual_prompt}' in mind, and {kw1} like a feather fine,",
-                    f"And {kw2} appearing, a most curious sign,",
-                    f"My thoughts take wing, on currents so divine,",
-                    f"Exploring wonders, where new ideas entwine,"
-                ]
-            random.shuffle(generic_line_starts_AAAA)
-
-            # Use self.common_words_filter for anchor candidates
-            anchor_candidates = [kw1, kw2] + [w for w in actual_prompt.split() if len(w) > 3 and w.lower() not in self.common_words_filter]
-            if not anchor_candidates: anchor_candidates.append("time")
-            random.shuffle(anchor_candidates)
-
-            for candidate in anchor_candidates:
-                if candidate and isinstance(candidate, str) and candidate.isalpha(): # Ensure candidate is a single word for rhyming
-                    rhymes = pronouncing.rhymes(candidate)
-                    if rhymes:
-                        selected_rhyme_anchor = candidate
-                        rhyme_list_for_A = list(set(r for r in rhymes if r != selected_rhyme_anchor)) # Unique rhymes, not the anchor itself
-                        if rhyme_list_for_A : # Need at least one other rhyming word
-                           print(f"[{self.agent_name}] AAAA: Using '{selected_rhyme_anchor}' as rhyme anchor. Found {len(rhyme_list_for_A)} other unique rhymes (showing up to 3): {rhyme_list_for_A[:3]}")
-                           break
-                        else: # Anchor has rhymes, but they might be itself or too few unique ones.
-                           selected_rhyme_anchor = None # Reset if not enough other rhymes
-                           rhyme_list_for_A = []
-
-            if not selected_rhyme_anchor or not rhyme_list_for_A :
-                print(f"[{self.agent_name}] AAAA: Could not find usable rhymes for selected anchors. Falling back to PersonaFreeVerse.")
-                current_rhyme_mode = "PersonaFreeVerse"
-            else:
-                # Line 1: Ends with selected_rhyme_anchor
-                # Prefer reference_phrase if it's substantial enough and different from the main prompt
-                line1_intro = ""
-                if reference_phrase and len(reference_phrase) < 40 and reference_phrase.lower() not in actual_prompt.lower() :
-                    line1_intro = f"You mentioned '{reference_phrase}', so"
-                else:
-                    line1_intro = generic_line_starts_AAAA[0]
-                _poem_lines_internal.append(f"{line1_intro} its end must sound like {selected_rhyme_anchor}.")
-
-                for i in range(1, 4):
-                    if rhyme_list_for_A:
-                        chosen_rhyming_word = random.choice(rhyme_list_for_A)
-                        if len(rhyme_list_for_A) > 1:
-                            try: rhyme_list_for_A.remove(chosen_rhyming_word)
-                            except ValueError: pass
-                        _poem_lines_internal.append(f"{generic_line_starts_AAAA[i % len(generic_line_starts_AAAA)]}, it too rhymes with {chosen_rhyming_word}.")
-                    else: # Should not happen if rhyme_list_for_A was validated initially
-                        _poem_lines_internal.append(f"{generic_line_starts_AAAA[i % len(generic_line_starts_AAAA)]}, like the first, it's {selected_rhyme_anchor}.")
-                generated_poem = "\n".join(_poem_lines_internal)
-
-        # --- AABB Rhyme Scheme Logic (Placeholder) ---
-        if current_rhyme_mode == "AABB" and PRONOUNCING_AVAILABLE: # Use current_rhyme_mode
-            print(f"[{self.agent_name}] Attempting AABB rhyme scheme for prompt: '{actual_prompt}' (Keywords: {kw1}, {kw2}; Ref: '{reference_phrase}')")
-            _poem_lines_internal = []
-            selected_rhyme_anchor_A = None
-            rhyme_list_for_A = []
-            selected_rhyme_anchor_B = None
-            rhyme_list_for_B = []
-
-            if self.agent_name.lower() == 'alpha': # Orator
-                generic_line_starts_AABB = [
-                    f"Regarding '{reference_phrase}', my thoughts on '{actual_prompt}' commence,",
-                    f"With {kw1} providing clear evidence,",
-                    f"Then, concerning {kw2}, I will dispense,",
-                    f"My reasoned views, to build our conference."
-                ]
-            else: # Beta - Dreamer (or default)
-                generic_line_starts_AABB = [
-                    f"You spoke of '{reference_phrase}', now '{actual_prompt}' fills my gaze,",
-                    f"And {kw1} flickers through a dreamy haze,",
-                    f"Then {kw2} appears, in myriad ways,",
-                    f"Through mystic paths, in wonder's maze."
-                ]
-            random.shuffle(generic_line_starts_AABB)
-
-            anchor_candidates_A = [kw1] + [w for w in actual_prompt.split() if len(w) > 3 and w.lower() not in self.common_words_filter and w.isalpha()]
-            if not anchor_candidates_A: anchor_candidates_A.append("day")
-            random.shuffle(anchor_candidates_A)
-
-            for candidate in anchor_candidates_A:
-                if candidate and isinstance(candidate, str):
-                    rhymes = pronouncing.rhymes(candidate)
-                    if rhymes:
-                        selected_rhyme_anchor_A = candidate
-                        rhyme_list_for_A = list(set(r for r in rhymes if r != selected_rhyme_anchor_A))
-                        if rhyme_list_for_A:
-                            print(f"[{self.agent_name}] AABB (A): Using '{selected_rhyme_anchor_A}' as rhyme anchor. Found {len(rhyme_list_for_A)} other unique rhymes: {rhyme_list_for_A[:3]}")
-                            break
-                        else:
-                            selected_rhyme_anchor_A = None # Reset
-
-            if not selected_rhyme_anchor_A:
-                print(f"[{self.agent_name}] AABB: Could not find usable rhymes for A. Falling back to PersonaFreeVerse.")
-                current_rhyme_mode = "PersonaFreeVerse"
-            else:
-                # Find rhymes for 'B'
-                anchor_candidates_B = [kw2] + [w for w in actual_prompt.split() if len(w) > 3 and w.lower() not in self.common_words_filter and w.isalpha() and w != selected_rhyme_anchor_A]
-                if not anchor_candidates_B: anchor_candidates_B.append("night")
-                random.shuffle(anchor_candidates_B)
-
-                for candidate in anchor_candidates_B:
-                    if candidate and isinstance(candidate, str):
-                        rhymes = pronouncing.rhymes(candidate)
-                        if rhymes: # Check if rhymes for B are somewhat different from A's anchor/rhymes
-                            temp_rhyme_list_B = list(set(r for r in rhymes if r != selected_rhyme_anchor_B and r != selected_rhyme_anchor_A))
-                            # Heuristic: if candidate B is not A's anchor, and its rhyme list has low overlap with A's rhymes
-                            is_anchor_B_different = candidate != selected_rhyme_anchor_A
-                            # Check if rhyme lists are substantially different or if B has enough distinct rhymes
-                            has_distinct_rhymes = len(set(temp_rhyme_list_B) - set(rhyme_list_for_A)) > 0 or len(temp_rhyme_list_B) > 1
-
-                            if temp_rhyme_list_B and (is_anchor_B_different or has_distinct_rhymes):
-                                selected_rhyme_anchor_B = candidate
-                                rhyme_list_for_B = temp_rhyme_list_B
-                                print(f"[{self.agent_name}] AABB (B): Using '{selected_rhyme_anchor_B}' as rhyme anchor. Found {len(rhyme_list_for_B)} unique rhymes: {rhyme_list_for_B[:3]}")
-                                break
-                            else: # try to ensure B anchor is not same as A if possible
-                                selected_rhyme_anchor_B = None
-
-                if not selected_rhyme_anchor_B or not rhyme_list_for_B: # Check if B rhymes were successfully found
-                    print(f"[{self.agent_name}] AABB: Could not find usable distinct rhymes for B. Falling back to PersonaFreeVerse.")
-                    current_rhyme_mode = "PersonaFreeVerse"
-                else:
-                    _poem_lines_internal.append(f"{generic_line_starts_AABB[0]} its end like {selected_rhyme_anchor_A}.")
-                    chosen_rhyme_A = random.choice(rhyme_list_for_A) if rhyme_list_for_A else selected_rhyme_anchor_A
-                    _poem_lines_internal.append(f"{generic_line_starts_AABB[1]} matching with {chosen_rhyme_A}.")
-                    _poem_lines_internal.append(f"{generic_line_starts_AABB[2]} now sounding like {selected_rhyme_anchor_B}.")
-                    chosen_rhyme_B = random.choice(rhyme_list_for_B) if rhyme_list_for_B else selected_rhyme_anchor_B
-                    _poem_lines_internal.append(f"{generic_line_starts_AABB[3]} rhyming with {chosen_rhyme_B}.")
-                    generated_poem = "\n".join(_poem_lines_internal)
-
-        # --- PersonaFreeVerse or Fallback Logic ---
-        if current_rhyme_mode == "PersonaFreeVerse":
-            if original_chosen_rhyme_mode != "PersonaFreeVerse" and generated_poem is None : # It's a fallback
-                 print(f"[{self.agent_name}] Rhyming mode '{original_chosen_rhyme_mode}' failed or not available, now using PersonaFreeVerse for prompt: '{actual_prompt}'.")
-            elif generated_poem is None : # Chosen initially or PRONOUNCING_AVAILABLE was false
-                 print(f"[{self.agent_name}] Using PersonaFreeVerse mode for prompt: '{actual_prompt}'.")
-
-            if generated_poem is None: # Ensure poem is generated if it wasn't by AAAA success
-                template_key = self.generation_counter % len(self.templates)
-                chosen_template_format_string = self.templates[template_key]
-                generated_poem = chosen_template_format_string.format(prompt=actual_prompt, kw1=kw1, kw2=kw2, reference_phrase=reference_phrase)
-                self.generation_counter += 1 # Increment counter only when PersonaFreeVerse templates are used
-
-        # Safety net if no poem was generated by any path (should not happen)
-        if generated_poem is None:
-            print(f"[{self.agent_name}] Critical Error: No poem generation path successfully taken. Defaulting to simple statement.")
-            generated_poem = f"In response to '{reference_phrase}', I consider '{actual_prompt}' with {kw1} and {kw2}."
+        poem_lines = []
+        if form_name == "Haiku (3 lines, 5-7-5 syllables)" and PRONOUNCING_AVAILABLE:
+            for i in range(target_line_count):
+                target_syl = target_syllables_list[i] if i < len(target_syllables_list) else 0
+                line_text = self._generate_haiku_line(actual_prompt, kw1, kw2, target_syl, line_number=(i+1))
+                poem_lines.append(line_text)
+            generated_poem = "\n".join(poem_lines)
+        else:
+            print(f"[{self.agent_name}] Warning: Form '{form_name}' not Haiku or pronouncing unavailable. Generating basic fallback.")
+            poem_lines.append(f"Prompt: {actual_prompt} ({kw1}, {kw2})")
+            poem_lines.append("Form rules not for Haiku / Or pronouncing lib missing.")
+            poem_lines.append("A simple verse instead.")
+            current_len = len(poem_lines)
+            if current_len > target_line_count:
+                poem_lines = poem_lines[:target_line_count]
+            elif current_len < target_line_count:
+                padding_needed = target_line_count - current_len
+                for _ in range(padding_needed): poem_lines.append("Line added for count.")
+            generated_poem = "\n".join(poem_lines)
 
         return generated_poem
 
-    def interpret_poetry(self, poetry: str) -> str:
-        """
-        Interprets received poetry to extract themes and generate a new creative prompt.
-        Aims to avoid re-using the prompt this agent last generated with.
-        """
-        # --- New Theme Keyword Extraction Logic ---
-        # Normalize: lowercase, remove punctuation
-        translator = str.maketrans('', '', string.punctuation.replace("'", "")) # Keep apostrophes
+    def interpret_poetry(self, poetry: str) -> dict:
+        translator = str.maketrans('', '', string.punctuation.replace("'", ""))
         normalized_poetry = poetry.lower().translate(translator)
         all_words = normalized_poetry.split()
-
-        # Filter stop words using self.common_words_filter
         significant_words = [word for word in all_words if word not in self.common_words_filter and len(word) > 2]
 
         if not significant_words:
-            theme_kw1 = "mystery"  # Fallback
-            theme_kw2 = "silence"  # Fallback
+            theme_kw1 = "mystery"
+            theme_kw2 = "silence"
         else:
             word_counts = collections.Counter(significant_words)
-            most_common = word_counts.most_common(2) # Get up to 2 most common
-
+            most_common = word_counts.most_common(2)
             theme_kw1 = most_common[0][0]
             if len(most_common) > 1:
                 theme_kw2 = most_common[1][0]
             else:
-                # If only one significant word, try to make kw2 related or a general term
-                related_fallbacks = { # Simple map for related words
-                    "stars": "sky", "dream": "sleep", "night": "day",
-                    "light": "dark", "love": "heart", "time": "eternity",
-                    "ocean": "sea", "cosmic": "universe", "robot": "future",
-                    "song": "melody", "lonely": "solitude", "space": "void"
+                related_fallbacks = {
+                    "stars": "sky", "dream": "sleep", "night": "day", "light": "dark",
+                    "love": "heart", "time": "eternity", "ocean": "sea", "cosmic": "universe",
+                    "robot": "future", "song": "melody", "lonely": "solitude", "space": "void"
                 }
-                theme_kw2 = related_fallbacks.get(theme_kw1, "meaning") # Default fallback for kw2
-                if theme_kw1 == theme_kw2: # Avoid kw1 and kw2 being identical
+                theme_kw2 = related_fallbacks.get(theme_kw1, "meaning")
+                if theme_kw1 == theme_kw2:
                     theme_kw2 = "essence" if theme_kw1 != "essence" else "depth"
 
-        # --- End of New Theme Keyword Extraction Logic ---
-
-        # Define interpretation prompt templates (using the new theme_kw1, theme_kw2)
-        # These are f-strings that will be evaluated *after* theme_kw1 and theme_kw2 are set.
         interpretation_prompt_templates = [
             lambda kw1, kw2: f"Delve into the connection between {kw1} and {kw2}.",
             lambda kw1, kw2: f"Imagine {kw1} as a secret held by {kw2}—what unfolds?",
             lambda kw1, kw2: f"A reflective dialogue: {kw1} converses with {kw2}.",
             lambda kw1, kw2: f"Explore the hidden meaning of {kw1}'s journey towards {kw2}."
         ]
-
-        # Deterministic selection of template
-        # Using a different logic than generate_poetry to ensure variety if called sequentially with similar inputs
-        # Use len(significant_words) as a proxy for the removed potential_keywords list length
         template_idx = (len(theme_kw1) + len(theme_kw2) + len(significant_words)) % len(interpretation_prompt_templates)
         new_creative_prompt = interpretation_prompt_templates[template_idx](theme_kw1, theme_kw2)
 
-        # Simple check to avoid this agent re-using the exact same prompt it last generated a poem with
         if self.last_prompt_generated_by_me and new_creative_prompt == self.last_prompt_generated_by_me:
-            # If it's the same, try the next template in a cycle, or add a suffix
             template_idx = (template_idx + 1) % len(interpretation_prompt_templates)
             new_creative_prompt = interpretation_prompt_templates[template_idx](theme_kw1, theme_kw2)
-            if new_creative_prompt == self.last_prompt_generated_by_me: # Still same after trying next?
+            if new_creative_prompt == self.last_prompt_generated_by_me:
                  new_creative_prompt = f"{new_creative_prompt}, from a new perspective."
 
-        # Extract reference_phrase from the input poetry
         lines = poetry.split('\n')
         reference_phrase = None
-
-        # Using the same common_words_set as for theme keyword extraction earlier in this method
-        # common_words_set for reference phrase extraction will now use self.common_words_filter
-        lines = poetry.split('\n') # This was already here for reference_phrase extraction
-        reference_phrase = None
-
         start_line_for_ref = 0
         for i in range(start_line_for_ref, len(lines)):
             line = lines[i].strip()
-            if not line:
-                continue
+            if not line: continue
             words = line.split()
-            significant_line_words = [w for w in words if len(w) >= 3 and w.lower() not in self.common_words_filter] # Use class filter
+            significant_line_words = [w for w in words if len(w) >= 3 and w.lower() not in self.common_words_filter]
             if len(significant_line_words) >= 2:
                 reference_phrase = " ".join(significant_line_words[:4])
                 break
@@ -429,122 +274,66 @@ class PoetryAgent:
                 line_content = line.strip()
                 if line_content:
                     words_in_line = line_content.split()
-                    if len(words_in_line) >= 3:
-                        reference_phrase = " ".join(words_in_line[:3])
-                        break
-                    elif words_in_line:
-                        reference_phrase = " ".join(words_in_line)
-                        break
-        if reference_phrase is None:
-            reference_phrase = ""
+                    if len(words_in_line) >= 3: reference_phrase = " ".join(words_in_line[:3]); break
+                    elif words_in_line: reference_phrase = " ".join(words_in_line); break
+        if reference_phrase is None: reference_phrase = ""
 
         print(f"[{self.agent_name}] Interpreted keywords: '{theme_kw1}', '{theme_kw2}'. Ref: '{reference_phrase}'. New prompt: '{new_creative_prompt}'")
         return {'prompt': new_creative_prompt, 'reference': reference_phrase}
 
     def send_message(self, recipient_id: str, message_type: str, payload: str):
-        """
-        Constructs a message, serializes it to JSON, and writes it to a file.
-        """
         message = {
-            "sender_id": self.agent_name,
-            "recipient_id": recipient_id,
-            "message_type": message_type,
-            "payload": payload,
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z" # Adding 'Z' for UTC
+            "sender_id": self.agent_name, "recipient_id": recipient_id,
+            "message_type": message_type, "payload": payload,
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z"
         }
-
         filename = f"message_to_{recipient_id}.json"
         try:
-            with open(filename, 'w') as f:
-                json.dump(message, f, indent=4)
+            with open(filename, 'w') as f: json.dump(message, f, indent=4)
             print(f"Message from {self.agent_name} sent to {recipient_id} in {filename}")
-        except IOError as e:
-            print(f"Error writing message to file {filename}: {e}")
+        except IOError as e: print(f"Error writing message to file {filename}: {e}")
 
     def receive_message(self) -> dict | None:
-        """
-        Checks for a message file, reads it, deserializes it, and then deletes the file.
-        """
         filename = f"message_to_{self.agent_name}.json"
         if os.path.exists(filename):
             try:
-                with open(filename, 'r') as f:
-                    message = json.load(f)
+                with open(filename, 'r') as f: message = json.load(f)
                 print(f"Message received by {self.agent_name} from {message.get('sender_id', 'unknown sender')} in {filename}")
-
-                # Delete the file after successful reading
-                try:
-                    os.remove(filename)
-                    print(f"Successfully deleted message file: {filename}")
-                except OSError as e:
-                    print(f"Error deleting message file {filename}: {e}")
-
+                try: os.remove(filename); print(f"Successfully deleted message file: {filename}")
+                except OSError as e: print(f"Error deleting message file {filename}: {e}")
                 return message
-            except json.JSONDecodeError as e:
-                print(f"Error decoding JSON from file {filename}: {e}")
-                return None
-            except IOError as e:
-                print(f"Error reading message file {filename}: {e}")
-                return None
-        else:
-            # print(f"No message file found for {self.agent_name} at {filename}")
-            return None
+            except json.JSONDecodeError as e: print(f"Error decoding JSON from file {filename}: {e}"); return None
+            except IOError as e: print(f"Error reading message file {filename}: {e}"); return None
+        return None
 
 if __name__ == '__main__':
-    # Initialize agents
-    agent_one_name = "PoetPioneer"
-    agent_two_name = "CritiqueCraft"
-    # Example Usage within poetry_agent.py
     agent_tester = PoetryAgent(agent_name="BardTest")
-    style_to_use = frederick_turner_style # Keep for API consistency
+    print(f"--- Testing {agent_tester.agent_name}'s Haiku Generation & Interpretation ---")
+    haiku_rules = {"name": "Haiku (3 lines, 5-7-5 syllables)", "line_count": 3, "syllables": [5, 7, 5], "rhyme_scheme": None}
 
-    print(f"--- Testing {agent_tester.agent_name}'s Varied Poem Generation & Interpretation ---")
-
-    # First generation by BardTest
-    prompt_data1 = {'prompt': "the song of a lonely robot in space", 'reference': "a silent wish"} # Added a sample reference
-    print(f"\nInput Prompt Data 1: {prompt_data1}")
-    poem1 = agent_tester.generate_poetry(prompt_data1, style_to_use)
-    # The number of templates for Alpha (default for BardTest) is 3.
-    print(f"[{agent_tester.agent_name} generated Poem 1 (template {(agent_tester.generation_counter-1) % 3 + 1})]:\n{poem1}")
+    print(f"\n--- Test 1: Haiku Generation ---")
+    prompt_data1_text = "green frog leaps in pond"
+    print(f"Input Prompt Text 1: '{prompt_data1_text}'")
+    poem1 = agent_tester.generate_poetry(prompt_data1_text, haiku_rules)
+    print(f"[{agent_tester.agent_name} generated Poem 1 (Haiku)]:\n{poem1}")
     print(f"BardTest's last_prompt_generated_by_me is now: '{agent_tester.last_prompt_generated_by_me}'")
 
-
-    # BardTest interprets another poem (e.g., from another agent)
-    incoming_poem = "The stars are cold and distant fires,\nA cosmic ocean of desires.\nEchoes of creation's birth."
-    print(f"\n{agent_tester.agent_name} interpreting incoming poem:\n{incoming_poem}")
+    incoming_poem = "Old pond, still and deep,\nA frog jumps, water's sound clear,\nSilence fills the air."
+    print(f"\n{agent_tester.agent_name} interpreting incoming Haiku:\n{incoming_poem}")
     interpretation_result = agent_tester.interpret_poetry(incoming_poem)
-    # Note: interpret_poetry already prints its findings.
-    # The following line is for __main__ to confirm what it received.
     print(f"[{agent_tester.agent_name}] Received from interpretation - Prompt: '{interpretation_result['prompt']}', Reference: '{interpretation_result['reference']}'")
 
-
-    # BardTest generates its second poem using the derived prompt and reference
-    prompt_data2 = interpretation_result # Pass the whole dict
-    print(f"\n{agent_tester.agent_name} generating Poem 2 using prompt_data: {prompt_data2}")
-    poem2 = agent_tester.generate_poetry(prompt_data2, style_to_use)
-    print(f"[{agent_tester.agent_name} generated Poem 2 (template {(agent_tester.generation_counter-1) % 3 + 1})]:\n{poem2}")
+    print(f"\n--- Test 2: Haiku Generation from Interpretation ---")
+    prompt_data2 = interpretation_result
+    print(f"{agent_tester.agent_name} generating Poem 2 using prompt_data: {prompt_data2}")
+    poem2 = agent_tester.generate_poetry(prompt_data2, haiku_rules)
+    print(f"[{agent_tester.agent_name} generated Poem 2 (Haiku)]:\n{poem2}")
     print(f"BardTest's last_prompt_generated_by_me is now: '{agent_tester.last_prompt_generated_by_me}'")
 
-    # Simulate interpreting another poem
-    incoming_poem_2 = "A journey to distant stars, a quest for the unknown desires of space."
-    print(f"\n{agent_tester.agent_name} interpreting incoming poem 2:\n{incoming_poem_2}")
-    interpretation_result_2 = agent_tester.interpret_poetry(incoming_poem_2)
-    print(f"[{agent_tester.agent_name}] Received from interpretation 2 - Prompt: '{interpretation_result_2['prompt']}', Reference: '{interpretation_result_2['reference']}'")
-
-    # BardTest generates its third poem
-    prompt_data3 = interpretation_result_2
-    print(f"\n{agent_tester.agent_name} generating Poem 3 using prompt_data: {prompt_data3}")
-    poem3 = agent_tester.generate_poetry(prompt_data3, style_to_use)
-    print(f"[{agent_tester.agent_name} generated Poem 3 (template {(agent_tester.generation_counter-1) % 3 + 1})]:\n{poem3}")
+    print(f"\n--- Test 3: Challenging Haiku Prompt ---")
+    prompt_data3_text = "ephemeral cherry blossoms quickly fade"
+    prompt_data3 = {'prompt': prompt_data3_text, 'reference': "spring's gentle touch"}
+    print(f"{agent_tester.agent_name} generating Poem 3 using prompt_data: {prompt_data3}")
+    poem3 = agent_tester.generate_poetry(prompt_data3, haiku_rules)
+    print(f"[{agent_tester.agent_name} generated Poem 3 (Haiku)]:\n{poem3}")
     print(f"BardTest's last_prompt_generated_by_me is now: '{agent_tester.last_prompt_generated_by_me}'")
-
-    # Deleting message files that might have been created by previous test runs, if any.
-    # This is not strictly related to this test but good practice if this __main__ was more complex.
-    # For this specific test, send_message and receive_message are not directly tested in __main__.
-    # However, if they were, cleanup would be important.
-    # Example:
-    # if os.path.exists(f"message_to_{agent_tester.agent_name}.json"):
-    #     try:
-    #         os.remove(f"message_to_{agent_tester.agent_name}.json")
-    #     except OSError:
-    #         pass # ignore if deletion fails for some reason

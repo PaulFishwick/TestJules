@@ -97,16 +97,17 @@ This PDF includes:
 
 This feature uses the [ReportLab](https://www.reportlab.com/opensource/) Python library for PDF generation. If ReportLab is not found in your Python environment, the script will attempt to install it automatically.
 
-### Experimental Dynamic Rhyming
+## Poetic Form Adherence: Haiku (Experimental)
 
-As an advanced feature, the agents will now sometimes attempt to dynamically generate poems adhering to specific rhyme schemes:
+The simulation has been enhanced to support specific poetic forms. Currently, the primary focus is on **Haiku** generation.
 
--   **AAAA:** Four lines where all end words rhyme.
--   **AABB:** Two consecutive rhyming couplets.
+When "Haiku" is selected as the session's poetic form:
+- Each agent (Alpha and Beta) will generate all their poems as Haikus.
+- A Haiku consists of 3 lines with a strict 5-7-5 syllable structure.
+- The system uses the `pronouncing` Python library to count syllables for words found in its dictionary (CMU Pronouncing Dictionary). For words not in the dictionary, a fallback heuristic (based on vowel groupings) is used to approximate syllable counts.
+- The poetry generation logic for Haikus (`PoetryAgent._generate_haiku_line`) iteratively attempts to construct each line to **perfectly match the target syllable count (5, 7, or 5)**.
 
-This capability is powered by the `pronouncing` Python library (which the script attempts to auto-install if not present) to find rhyming words. For each poem, the agent randomly decides whether to attempt a rhyming scheme or use its standard persona-based free verse generation ("PersonaFreeVerse" mode).
-
-**Note:** Dynamic rhyme generation within a stubbed system is complex. While the end-word rhymes produced by AAAA/AABB modes are generally correct according to the `pronouncing` library, the overall poetic quality, naturalness of phrasing, and thematic coherence in these rhymed poems may vary and can sometimes sound more forced than the free verse outputs. If suitable rhymes cannot be found for a chosen scheme, the agent will fall back to its PersonaFreeVerse mode. This feature is considered experimental.
+**Note on Quality:** While the Haikus generated will adhere to the 5-7-5 syllable structure based on the system's counting method, the poetic quality, depth, and naturalness of language are characteristic of an experimental, rule-based generative system. Lines may appear simplistic or slightly forced as the current priority is structural adherence. The `pronouncing` library's coverage and the fallback heuristic also influence the precision for less common words.
 
 ## Current Status & Future Work
 
